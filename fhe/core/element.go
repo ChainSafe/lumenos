@@ -1,4 +1,4 @@
-package math
+package core
 
 import (
 	"encoding/binary"

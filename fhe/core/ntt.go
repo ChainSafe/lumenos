@@ -1,4 +1,4 @@
-package math
+package core
 
 func NTT(values []*Element, size int, field *PrimeField) []*Element {
 	nttInner(values, size, field)
@@ -77,14 +77,14 @@ func nttInner(v []*Element, size int, field *PrimeField) {
 		for chunkStart := 0; chunkStart < len(v); chunkStart += size {
 			chunk := v[chunkStart : chunkStart+size]
 
-			_transpose(chunk, n1, n2)
+			Transpose(chunk, n1, n2)
 
 			// Perform n2 NTTs of size n1 (on columns of original matrix)
 			// Since transpose places columns into rows, we apply NTTs row-wise now.
 			// The size of these NTTs is n1.
 			nttInner(chunk, n1, field) // Recursive call on the whole transposed chunk
 
-			_transpose(chunk, n2, n1)
+			Transpose(chunk, n2, n1)
 
 			// Step 4: Apply twiddle factors omega_size^{ij}
 			// Skip i=0 and j=0 as the twiddle factor is 1
@@ -93,7 +93,7 @@ func nttInner(v []*Element, size int, field *PrimeField) {
 				idx := step
 				for j := 1; j < n2; j++ {
 					idx %= field.N()
-					twiddle := field.RootForward(idx) // Fetch root omega_N^{index}
+					twiddle := field.RootForward(idx)
 
 					// Apply twiddle factor to element at (i, j) -> linear index i*n2 + j
 					chunk[i*n2+j] = field.Mul(chunk[i*n2+j], twiddle)
@@ -102,29 +102,7 @@ func nttInner(v []*Element, size int, field *PrimeField) {
 			}
 
 			nttInner(chunk, n2, field)
-			_transpose(chunk, n1, n2) // Transpose back
-		}
-	}
-}
-
-// _transpose transposes a slice representing a matrix in row-major order.
-func _transpose(matrix []*Element, rows, cols int) {
-	if len(matrix) != rows*cols {
-		panic("matrix size does not match rows*cols")
-	}
-	if rows == cols {
-		for i := 0; i < rows; i++ {
-			for j := i + 1; j < cols; j++ {
-				matrix[i*cols+j], matrix[j*rows+i] = matrix[j*rows+i], matrix[i*cols+j]
-			}
-		}
-	} else {
-		copyMatrix := make([]*Element, len(matrix))
-		copy(copyMatrix, matrix)
-		for i := 0; i < rows; i++ {
-			for j := 0; j < cols; j++ {
-				matrix[j*rows+i] = copyMatrix[i*cols+j]
-			}
+			Transpose(chunk, n1, n2) // Transpose back
 		}
 	}
 }

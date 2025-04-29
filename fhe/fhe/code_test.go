@@ -1,13 +1,13 @@
-package main
+package fhe_test
 
 import (
 	"encoding/binary"
 	"fmt"
+	"testing"
 	"time"
 
 	"github.com/timofey/fhe-experiments/lattigo/core"
 	"github.com/timofey/fhe-experiments/lattigo/fhe"
-
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 	"golang.org/x/crypto/chacha20"
@@ -56,11 +56,12 @@ const (
 	rows    = 2
 	cols    = 16
 	Modulus = 0x3ee0001
+	rhoInv  = 2
 	// Modulus = 288230376150630401
 	// Modulus = 144115188075593729 // allows LogN >= 15
 )
 
-func main() {
+func TestEncode(t *testing.T) {
 	// Reset the multiplication counter at the start
 	fhe.MultiplicationsCounter = 0
 
@@ -85,14 +86,13 @@ func main() {
 	fmt.Printf("Key generation took: %v\n", time.Since(start))
 
 	// Initialize the necessary objects
-	start = time.Now()
-	backend := fhe.NewBackendBFV(params, pk)
 	encoder := bgv.NewEncoder(params)
 	decryptor := rlwe.NewDecryptor(params, sk)
-	fmt.Printf("Object initialization took: %v\n", time.Since(start))
+	backend := fhe.NewBackendBFV(params, pk)
 
 	_ = encoder   // Silence unused variable warnings for now
 	_ = decryptor // These will be used in future operations
+	_ = backend
 
 	ptField, err := core.NewPrimeField(params.PlaintextModulus(), cols*2)
 	if err != nil {
@@ -128,7 +128,7 @@ func main() {
 
 	// Apply NTT
 	start = time.Now()
-	result, err := fhe.NTT(ciphertexts, len(ciphertexts), &ptField, backend)
+	result, err := fhe.Encode(ciphertexts, rhoInv, &ptField, backend)
 	if err != nil {
 		panic(err)
 	}
@@ -158,7 +158,7 @@ func main() {
 	start = time.Now()
 	encodedMatrixCheck := make([][]*core.Element, rows)
 	for i := range matrix {
-		encodedMatrixCheck[i] = core.NTT(matrix[i], len(matrix[i]), &ptField)
+		encodedMatrixCheck[i] = encodeReference(matrix[i], rhoInv, &ptField)
 	}
 	fmt.Printf("Plain NTT: %v\n", time.Since(start))
 	fmt.Printf("New NTT: %v\n", encodedMatrixCheck)
@@ -177,4 +177,32 @@ func main() {
 
 	// Print the number of multiplications after NTT
 	fmt.Printf("Number of multiplications in NTT: %d\n", fhe.MultiplicationsCounter)
+}
+
+// encodeReference performs Reed-Solomon encoding on a single plaintext row.
+// It extends the row by a factor of rhoInv, padding with zeros, and then applies NTT.
+func encodeReference(row []*core.Element, rhoInv int, field *core.PrimeField) []*core.Element {
+	if len(row) == 0 {
+		panic("row is empty")
+	}
+
+	cols := len(row) // Number of columns (original)
+	encodedCols := cols * rhoInv
+
+	// Create the extended row
+	encodedRow := make([]*core.Element, encodedCols)
+	for j := range encodedRow { // Initialize elements to avoid nil pointer dereference
+		encodedRow[j] = core.NewElement(0)
+	}
+
+	// Copy original elements
+	copy(encodedRow, row)
+
+	// Pad the rest with zeros (already initialized, but SetZero is explicit)
+	for j := cols; j < encodedCols; j++ {
+		encodedRow[j].SetZero()
+	}
+
+	// Apply NTT to the extended row
+	return core.NTT(encodedRow, encodedCols, field)
 }
