@@ -57,7 +57,7 @@ func (f *PrimeField) Mul(x, y *Element) *Element {
 }
 
 func (f *PrimeField) MulAssign(x, y, z *Element) {
-	f.r.MulCoeffsBarrett(x[:], y[:], z[:])
+	z[0] = ring.BRed(x[0], y[0], f.r.Modulus, f.r.BRedConstant)
 }
 
 // Add z = x + y (mod q)
@@ -68,7 +68,7 @@ func (f *PrimeField) Add(x, y *Element) *Element {
 }
 
 func (f *PrimeField) AddAssign(x, y, z *Element) {
-	f.r.Add(x[:], y[:], z[:])
+	z[0] = ring.CRed(x[0]+y[0], f.r.Modulus)
 }
 
 // Double z = x + x (mod q), aka Lsh 1
@@ -86,7 +86,7 @@ func (f *PrimeField) Sub(x, y *Element) *Element {
 }
 
 func (f *PrimeField) SubAssign(x, y, z *Element) {
-	f.r.Sub(x[:], y[:], z[:])
+	z[0] = ring.CRed(x[0]+f.r.Modulus-y[0], f.r.Modulus)
 }
 
 // Neg z = q - x
@@ -97,7 +97,14 @@ func (f *PrimeField) Neg(x *Element) *Element {
 }
 
 func (f *PrimeField) NegAssign(x, z *Element) {
-	f.r.Neg(x[:], z[:])
+	z[0] = f.r.Modulus - x[0]
+}
+
+func (f *PrimeField) Select(c int, x0 *Element, x1 *Element) *Element {
+	cC := uint64((int64(c) | -int64(c)) >> 63) // "canonicized" into: 0 if c=0, -1 otherwise
+	z := Zero()
+	z[0] = x0[0] ^ cC&(x0[0]^x1[0])
+	return z
 }
 
 func (f *PrimeField) generateNTTConstants() (err error) {
