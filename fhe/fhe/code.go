@@ -21,7 +21,6 @@ func Encode(matrix []*rlwe.Ciphertext, rows, rhoInv int, backend *BackendBFV) ([
 		return nil, err
 	}
 
-	// fill the rest with zeros
 	for i := size; i < size*rhoInv; i++ {
 		encoded[i] = zeroCol.CopyNew()
 	}

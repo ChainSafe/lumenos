@@ -80,8 +80,7 @@ func (c *LigeroCommitment) Prove(backend *BackendBFV, transcript *core.Transcrip
 	}
 
 	vMat := make([]*rlwe.Ciphertext, c.Committer.Cols)
-	fmt.Printf("matrix cols: %d\n", len(c.Matrix))
-	fmt.Printf("cols: %d\n", c.Committer.Cols)
+
 	for i := range c.Matrix {
 		t, err := backend.MulNew(c.Matrix[i], rPt)
 		if err != nil {

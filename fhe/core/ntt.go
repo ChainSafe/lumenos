@@ -78,31 +78,22 @@ func nttInner(v []*Element, size int, field *PrimeField) {
 			chunk := v[chunkStart : chunkStart+size]
 
 			Transpose(chunk, n1, n2)
-
-			// Perform n2 NTTs of size n1 (on columns of original matrix)
-			// Since transpose places columns into rows, we apply NTTs row-wise now.
-			// The size of these NTTs is n1.
-			nttInner(chunk, n1, field) // Recursive call on the whole transposed chunk
-
+			nttInner(chunk, n1, field)
 			Transpose(chunk, n2, n1)
 
-			// Step 4: Apply twiddle factors omega_size^{ij}
-			// Skip i=0 and j=0 as the twiddle factor is 1
 			for i := 1; i < n1; i++ {
 				step = (i * step) % field.N()
 				idx := step
 				for j := 1; j < n2; j++ {
 					idx %= field.N()
 					twiddle := field.RootForward(idx)
-
-					// Apply twiddle factor to element at (i, j) -> linear index i*n2 + j
 					chunk[i*n2+j] = field.Mul(chunk[i*n2+j], twiddle)
 					idx += step
 				}
 			}
 
 			nttInner(chunk, n2, field)
-			Transpose(chunk, n1, n2) // Transpose back
+			Transpose(chunk, n1, n2)
 		}
 	}
 }

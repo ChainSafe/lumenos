@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 	"math/bits"
 	"reflect"
 )
@@ -29,7 +28,6 @@ const (
 	ElementBytes = 8  // number of bytes needed to represent a Element
 )
 
-// Field modulus q
 // NewElement returns a new Element from a uint64 value
 //
 // it is equivalent to
@@ -110,14 +108,6 @@ func (z *Element) SetOne() *Element {
 	return z
 }
 
-// Div z = x*y⁻¹ (mod q)
-// func (z *Element) Div(x, y *Element) *Element {
-// 	var yInv Element
-// 	yInv.Inverse(y)
-// 	z.Mul(x, &yInv)
-// 	return z
-// }
-
 // Equal returns z == x; constant-time
 func (z *Element) Equal(x *Element) bool {
 	return z.NotEqual(x) == 0
@@ -175,14 +165,6 @@ func (z *Element) Cmp(x *Element) int {
 // returns 0 if z == 0
 func (z *Element) BitLen() int {
 	return bits.Len64(z[0])
-}
-
-// toBigInt returns z as a big.Int in Montgomery form
-func (z *Element) toBigInt(res *big.Int) *big.Int {
-	var b [ElementBytes]byte
-	binary.BigEndian.PutUint64(b[0:8], z[0])
-
-	return res.SetBytes(b[:])
 }
 
 func (z *Element) Limbs() [1]uint64 {

@@ -93,7 +93,6 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 	fmt.Printf("logP: %v\n", logP)
 	fmt.Printf("plaintextModulus: %d\n", plaintextModulus)
 
-	// Construct the literal
 	paramsLit := bgv.ParametersLiteral{
 		LogN:             logN,
 		LogQ:             logQ,

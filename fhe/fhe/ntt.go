@@ -248,32 +248,28 @@ func nttInner(v []*rlwe.Ciphertext, size int, backend *BackendBFV) error {
 			v[i+3], v[i+6] = v[i+6], v[i+3]
 		}
 	default:
+		// Six-step Algorithm
 		n1 := core.SqrtFactor(size)
 		n2 := size / n1
 		step := backend.Field().N() / size
 
-		// Process the input slice v in chunks of 'size'
 		for chunkStart := 0; chunkStart < len(v); chunkStart += size {
 			chunk := v[chunkStart : chunkStart+size]
 
 			core.Transpose(chunk, n1, n2)
 
 			// Perform n2 NTTs of size n1 (on columns of original matrix)
-			// Since math.Transpose places columns into rows, we apply NTTs row-wise now.
-			// The size of these NTTs is n1.
-			nttInner(chunk, n1, backend) // Recursive call on the whole math.Transposed chunk
+			// apply NTTs row-wise now with size n1.
+			nttInner(chunk, n1, backend)
 
 			core.Transpose(chunk, n2, n1)
 
-			// Step 4: Apply twiddle factors omega_size^{ij}
-			// Skip i=0 and j=0 as the twiddle factor is 1
 			for i := 1; i < n1; i++ {
 				step = (i * step) % backend.Field().N()
 				idx := step
 				for j := 1; j < n2; j++ {
 					idx %= backend.Field().N()
 
-					// Apply twiddle factor to element at (i, j) -> linear index i*n2 + j
 					err := backend.Mul(chunk[i*n2+j], backend.Field().RootForwardUint64(idx), chunk[i*n2+j])
 					if err != nil {
 						return err
@@ -284,7 +280,7 @@ func nttInner(v []*rlwe.Ciphertext, size int, backend *BackendBFV) error {
 			}
 
 			nttInner(chunk, n2, backend)
-			core.Transpose(chunk, n1, n2) // math.Transpose back
+			core.Transpose(chunk, n1, n2)
 		}
 	}
 	return nil

@@ -107,6 +107,7 @@ func (f *PrimeField) Select(c int, x0 *Element, x1 *Element) *Element {
 	return z
 }
 
+// from: https://github.com/tuneinsight/lattigo/blob/ced00885fbfa527d71b8e5ba93c07a882ca16fde/ring/subring.go#L99
 func (f *PrimeField) generateNTTConstants() (err error) {
 	if f.r.N == 0 || f.r.Modulus == 0 {
 		return fmt.Errorf("invalid t parameters (missing)")
