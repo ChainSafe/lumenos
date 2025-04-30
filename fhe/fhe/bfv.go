@@ -40,7 +40,6 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 
 	// --- Input Validation (Simplified) ---
 	if nttSize < 2 {
-		// We still check if size is at least 2, even if power-of-two is guaranteed.
 		return bgv.ParametersLiteral{}, errors.New("nttSize must be >= 2")
 	}
 	if logN <= 0 {

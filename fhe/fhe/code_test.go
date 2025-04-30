@@ -128,7 +128,7 @@ func TestEncode(t *testing.T) {
 
 	// Apply NTT
 	start = time.Now()
-	result, err := fhe.Encode(ciphertexts, rhoInv, &ptField, backend)
+	result, err := fhe.Encode(ciphertexts, rows, rhoInv, &ptField, backend)
 	if err != nil {
 		panic(err)
 	}
@@ -138,7 +138,7 @@ func TestEncode(t *testing.T) {
 	start = time.Now()
 	encodedMatrixRowMajor := make([][]*core.Element, rows)
 	for i := range encodedMatrixRowMajor {
-		encodedMatrixRowMajor[i] = make([]*core.Element, cols)
+		encodedMatrixRowMajor[i] = make([]*core.Element, cols*rhoInv)
 	}
 
 	for j, ciphertext := range result {
@@ -152,7 +152,7 @@ func TestEncode(t *testing.T) {
 		}
 	}
 	fmt.Printf("Decryption and decoding took: %v\n", time.Since(start))
-	fmt.Printf("Reference NTT: %v\n", encodedMatrixRowMajor)
+	// fmt.Printf("Encoded matrix: %v\n", encodedMatrixRowMajor)
 
 	// Test NTT on plain values
 	start = time.Now()
@@ -161,13 +161,13 @@ func TestEncode(t *testing.T) {
 		encodedMatrixCheck[i] = encodeReference(matrix[i], rhoInv, &ptField)
 	}
 	fmt.Printf("Plain NTT: %v\n", time.Since(start))
-	fmt.Printf("New NTT: %v\n", encodedMatrixCheck)
+	// fmt.Printf("Encoded matrix check: %v\n", encodedMatrixCheck)
 
 	// Assert that encodedMatrixRowMajor and encodedMatrixCheck are equal
 	for i := range encodedMatrixRowMajor {
 		for j := range encodedMatrixRowMajor[i] {
 			if !encodedMatrixRowMajor[i][j].Equal(encodedMatrixCheck[i][j]) {
-				panic(fmt.Sprintf("Matrices differ at [%d][%d]: expected %v, got %v", i, j, encodedMatrixRowMajor[i][j], encodedMatrixCheck[i][j]))
+				t.Fatalf("Matrices differ at [%d][%d]: expected %v, got %v", i, j, encodedMatrixRowMajor[i][j], encodedMatrixCheck[i][j])
 			}
 		}
 	}

@@ -33,7 +33,7 @@ func NewLigeroCommitter(securityBits float64, size int) (*LigeroCommitter, error
 		return nil, fmt.Errorf("securityBits must be positive")
 	}
 
-	expansion := 2.0 // Use float64 for calculations
+	expansion := 2.0
 
 	// Calculate queries
 	queriesLogTerm := math.Log2(1.0 + 1.0/expansion)
@@ -49,19 +49,17 @@ func NewLigeroCommitter(securityBits float64, size int) (*LigeroCommitter, error
 	targetRows := int(math.Sqrt(2.0 * float64(size) / float64(queries)))
 	rows := divisorCloseTo(targetRows)
 	if rows == 0 || size%rows != 0 {
-		// This should ideally not happen if divisorCloseTo is correct and size > 0
 		return nil, fmt.Errorf("could not find a valid row divisor for size %d near target %d", size, targetRows)
 	}
 	cols := size / rows
-	if rows*cols != size { // Sanity check
+	if rows*cols != size {
 		return nil, fmt.Errorf("internal error: rows * cols != size (%d * %d != %d)", rows, cols, size)
 	}
 
 	code := int(expansion * float64(cols))
 
 	// Calculate combinations
-	// log2(253.6) is approx 7.986. This is based on the field size mentioned in the Rust code comment.
-	// Note: Adjust 253.6 if your field size is different.
+	// TODO: Adjust 253.6 for field prime
 	const log2FieldApprox = 253.6
 	log2Code := math.Log2(float64(code))
 	combinationsDenominator := log2FieldApprox - log2Code
@@ -71,8 +69,6 @@ func NewLigeroCommitter(securityBits float64, size int) (*LigeroCommitter, error
 	combinations := 1 + int(math.Floor((securityBits-1.0)/combinationsDenominator))
 
 	if combinations != 1 {
-		// The original Rust code asserted combinations == 1. We return an error if it's not.
-		// Depending on the use case, you might want to handle this differently.
 		return nil, fmt.Errorf("multiple combinations (%d) are not supported or expected at this field size", combinations)
 	}
 
@@ -86,10 +82,12 @@ func NewLigeroCommitter(securityBits float64, size int) (*LigeroCommitter, error
 }
 
 func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, field *core.PrimeField, backend *BackendBFV) (*LigeroCommitment, error) {
-	encoded, err := Encode(matrix, c.rhoInv, field, backend)
+	encoded, err := Encode(matrix, c.Rows, c.rhoInv, field, backend)
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: Merkle tree commitment
 
 	return &LigeroCommitment{
 		Committer: c,
@@ -104,7 +102,6 @@ func divisorCloseTo(target int) int {
 		panic("target must be positive")
 	}
 	utarget := uint(target)
-	// bits.Len returns floor(log2(x)) + 1. We want floor(log2(x)).
 	powerOfTwo := uint(1) << (bits.Len(utarget) - 1)
 	return int(powerOfTwo)
 }

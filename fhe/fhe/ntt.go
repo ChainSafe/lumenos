@@ -1,8 +1,6 @@
 package fhe
 
 import (
-	"fmt"
-
 	"github.com/timofey/fhe-experiments/lattigo/core"
 
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
@@ -276,7 +274,6 @@ func nttInner(v []*rlwe.Ciphertext, size int, field *core.PrimeField, backend *B
 					idx %= field.N()
 
 					// Apply twiddle factor to element at (i, j) -> linear index i*n2 + j
-					fmt.Printf("Applying twiddle factor to element at (%d, %d) chunk %d * Root(%d)\n", i, j, i*n2+j, idx)
 					err := backend.Mul(chunk[i*n2+j], field.RootForwardUint64(idx), chunk[i*n2+j])
 					if err != nil {
 						return err

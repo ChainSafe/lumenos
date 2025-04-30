@@ -34,7 +34,7 @@ func Transpose[T any](matrix []T, rows, cols int) {
 	} else {
 		// Out-of-place transpose for non-square matrices
 		copyMatrix := make([]T, len(matrix))
-		copy(copyMatrix, matrix) // Use built-in copy for efficiency
+		copy(copyMatrix, matrix)
 
 		for i := 0; i < rows; i++ {
 			for j := 0; j < cols; j++ {
