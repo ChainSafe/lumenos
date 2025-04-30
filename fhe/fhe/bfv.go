@@ -5,22 +5,28 @@ import (
 	"fmt"
 	"math/bits"
 
+	"github.com/timofey/fhe-experiments/lattigo/core"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
 type BackendBFV struct {
-	params bgv.Parameters
+	ptField *core.PrimeField
+	params  bgv.Parameters
 	*bgv.Evaluator
 	*bgv.Encoder
 	*rlwe.Encryptor
 }
 
-func NewBackendBFV(params bgv.Parameters, pk *rlwe.PublicKey) *BackendBFV {
-	evaluator := bgv.NewEvaluator(params, nil)
+func NewBackendBFV(plaintextField *core.PrimeField, params bgv.Parameters, pk *rlwe.PublicKey, evk rlwe.EvaluationKeySet) *BackendBFV {
+	evaluator := bgv.NewEvaluator(params, evk)
 	encoder := bgv.NewEncoder(params)
 	encryptor := rlwe.NewEncryptor(params, pk)
-	return &BackendBFV{params, evaluator, encoder, encryptor}
+	return &BackendBFV{plaintextField, params, evaluator, encoder, encryptor}
+}
+
+func (b *BackendBFV) Field() *core.PrimeField {
+	return b.ptField
 }
 
 // GenerateBGVParamsForNTT generates BGV parameter based on the NTT size

@@ -52,15 +52,6 @@ func makeMatrix(rows, cols int, batchEncoder func([]uint64) *rlwe.Plaintext) ([]
 	return rowMatrix, colMatrix, nil
 }
 
-const (
-	rows    = 2
-	cols    = 16
-	Modulus = 0x3ee0001
-	rhoInv  = 2
-	// Modulus = 288230376150630401
-	// Modulus = 144115188075593729 // allows LogN >= 15
-)
-
 func TestEncode(t *testing.T) {
 	// Reset the multiplication counter at the start
 	fhe.MultiplicationsCounter = 0
@@ -85,19 +76,15 @@ func TestEncode(t *testing.T) {
 	sk, pk := kgen.GenKeyPairNew()
 	fmt.Printf("Key generation took: %v\n", time.Since(start))
 
-	// Initialize the necessary objects
-	encoder := bgv.NewEncoder(params)
-	decryptor := rlwe.NewDecryptor(params, sk)
-	backend := fhe.NewBackendBFV(params, pk)
-
-	_ = encoder   // Silence unused variable warnings for now
-	_ = decryptor // These will be used in future operations
-	_ = backend
-
 	ptField, err := core.NewPrimeField(params.PlaintextModulus(), cols*2)
 	if err != nil {
 		panic(err)
 	}
+
+	// Initialize the necessary objects
+	encoder := bgv.NewEncoder(params)
+	decryptor := rlwe.NewDecryptor(params, sk)
+	backend := fhe.NewBackendBFV(&ptField, params, pk, nil)
 
 	start = time.Now()
 	matrix, batchedCols, err := makeMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
@@ -128,11 +115,11 @@ func TestEncode(t *testing.T) {
 
 	// Apply NTT
 	start = time.Now()
-	result, err := fhe.Encode(ciphertexts, rows, rhoInv, &ptField, backend)
+	result, err := fhe.Encode(ciphertexts, rows, rhoInv, backend)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("NTT operation took: %v\n", time.Since(start))
+	fmt.Printf("FHE evaluation took: %v\n", time.Since(start))
 
 	// Decrypt and print results
 	start = time.Now()
@@ -160,7 +147,7 @@ func TestEncode(t *testing.T) {
 	for i := range matrix {
 		encodedMatrixCheck[i] = encodeReference(matrix[i], rhoInv, &ptField)
 	}
-	fmt.Printf("Plain NTT: %v\n", time.Since(start))
+	fmt.Printf("Plain RS encoding: %v\n", time.Since(start))
 	// fmt.Printf("Encoded matrix check: %v\n", encodedMatrixCheck)
 
 	// Assert that encodedMatrixRowMajor and encodedMatrixCheck are equal

@@ -1,12 +1,11 @@
 package fhe
 
 import (
-	"github.com/timofey/fhe-experiments/lattigo/core"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
-func Encode(matrix []*rlwe.Ciphertext, rows, rhoInv int, field *core.PrimeField, backend *BackendBFV) ([]*rlwe.Ciphertext, error) {
+func Encode(matrix []*rlwe.Ciphertext, rows, rhoInv int, backend *BackendBFV) ([]*rlwe.Ciphertext, error) {
 	size := len(matrix)
 	encoded := make([]*rlwe.Ciphertext, size*rhoInv)
 	for i := 0; i < size; i++ {
@@ -27,7 +26,7 @@ func Encode(matrix []*rlwe.Ciphertext, rows, rhoInv int, field *core.PrimeField,
 		encoded[i] = zeroCol.CopyNew()
 	}
 
-	ntt, err := NTT(encoded, size*rhoInv, field, backend)
+	ntt, err := NTT(encoded, size*rhoInv, backend)
 	if err != nil {
 		return nil, err
 	}

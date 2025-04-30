@@ -84,20 +84,17 @@ func main() {
 	sk, pk := kgen.GenKeyPairNew()
 	fmt.Printf("Key generation took: %v\n", time.Since(start))
 
-	// Initialize the necessary objects
-	start = time.Now()
-	backend := fhe.NewBackendBFV(params, pk)
-	encoder := bgv.NewEncoder(params)
-	decryptor := rlwe.NewDecryptor(params, sk)
-	fmt.Printf("Object initialization took: %v\n", time.Since(start))
-
-	_ = encoder   // Silence unused variable warnings for now
-	_ = decryptor // These will be used in future operations
-
 	ptField, err := core.NewPrimeField(params.PlaintextModulus(), cols*2)
 	if err != nil {
 		panic(err)
 	}
+
+	// Initialize the necessary objects
+	start = time.Now()
+	backend := fhe.NewBackendBFV(&ptField, params, pk, nil)
+	encoder := bgv.NewEncoder(params)
+	decryptor := rlwe.NewDecryptor(params, sk)
+	fmt.Printf("Object initialization took: %v\n", time.Since(start))
 
 	start = time.Now()
 	matrix, batchedCols, err := makeMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
@@ -128,7 +125,7 @@ func main() {
 
 	// Apply NTT
 	start = time.Now()
-	result, err := fhe.NTT(ciphertexts, len(ciphertexts), &ptField, backend)
+	result, err := fhe.NTT(ciphertexts, len(ciphertexts), backend)
 	if err != nil {
 		panic(err)
 	}

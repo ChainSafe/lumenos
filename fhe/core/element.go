@@ -24,9 +24,9 @@ import (
 type Element [1]uint64
 
 const (
-	Limbs = 1  // number of 64 bits words needed to represent a Element
-	Bits  = 64 // number of bits needed to represent a Element
-	Bytes = 8  // number of bytes needed to represent a Element
+	ElementLimbs = 1  // number of 64 bits words needed to represent a Element
+	ElementBits  = 64 // number of bits needed to represent a Element
+	ElementBytes = 8  // number of bytes needed to represent a Element
 )
 
 // Field modulus q
@@ -145,7 +145,7 @@ func (z *Element) IsUint64() bool {
 
 // Uint64 returns the uint64 representation of x. If x cannot be represented in a uint64, the result is undefined.
 func (z *Element) Uint64() uint64 {
-	return z.Bits()[0]
+	return z.Limbs()[0]
 }
 
 // FitsOnOneWord reports whether z words (except the least significant word) are 0
@@ -161,8 +161,8 @@ func (z *Element) FitsOnOneWord() bool {
 //	 0 if z == x
 //	+1 if z >  x
 func (z *Element) Cmp(x *Element) int {
-	_z := z.Bits()
-	_x := x.Bits()
+	_z := z.Limbs()
+	_x := x.Limbs()
 	if _z[0] > _x[0] {
 		return 1
 	} else if _z[0] < _x[0] {
@@ -179,19 +179,20 @@ func (z *Element) BitLen() int {
 
 // toBigInt returns z as a big.Int in Montgomery form
 func (z *Element) toBigInt(res *big.Int) *big.Int {
-	var b [Bytes]byte
+	var b [ElementBytes]byte
 	binary.BigEndian.PutUint64(b[0:8], z[0])
 
 	return res.SetBytes(b[:])
 }
 
-// Bits provides access to z by returning its value as a little-endian [1]uint64 array.
-// Bits is intended to support implementation of missing low-level Element
-// functionality outside this package; it should be avoided otherwise.
-func (z *Element) Bits() [1]uint64 {
+func (z *Element) Limbs() [1]uint64 {
 	_z := *z
-	// fromMont(&_z)
 	return _z
+}
+
+func (z *Element) ToBytes() (res []byte) {
+	binary.LittleEndian.PutUint64(res, z[0])
+	return
 }
 
 // String returns the decimal representation of z as a string.
