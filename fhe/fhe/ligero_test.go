@@ -88,20 +88,23 @@ func TestLigero(t *testing.T) {
 
 	transcript := core.NewTranscript("test")
 	ligero := &fhe.LigeroCommitter{
-		Rows:    rows,
-		Cols:    cols,
-		RhoInv:  rhoInv,
-		Queries: 1,
+		LigeroMetadata: fhe.LigeroMetadata{
+			Rows:    rows,
+			Cols:    cols,
+			RhoInv:  rhoInv,
+			Queries: 1,
+		},
 	}
 
-	comm := fhe.LigeroCommitment{
-		Committer:     ligero,
-		Matrix:        ciphertexts,
-		EncodedMatrix: nil,
+	comm, _, err := ligero.Commit(ciphertexts, backend, transcript)
+	if err != nil {
+		panic(err)
 	}
+
+	z := core.NewElement(1)
 
 	start = time.Now()
-	result, err := comm.Prove(backend, transcript)
+	result, err := comm.Prove(z, backend, transcript)
 	if err != nil {
 		panic(err)
 	}
@@ -111,7 +114,7 @@ func TestLigero(t *testing.T) {
 	start = time.Now()
 	vMat := make([]*core.Element, cols)
 
-	for j, ciphertext := range result {
+	for j, ciphertext := range result.MatR {
 		plaintext := decryptor.DecryptNew(ciphertext)
 		column := make([]uint64, rows)
 		if err := encoder.Decode(plaintext, column); err != nil {
@@ -123,6 +126,7 @@ func TestLigero(t *testing.T) {
 	fmt.Printf("Decryption and decoding took: %v\n", time.Since(start))
 
 	transcriptCheck := core.NewTranscript("test")
+	transcriptCheck.AppendBytes("root", comm.Tree.MerkleRoot())
 	start = time.Now()
 	vMatCheck, err := ligeroProveReference(matrix, ptField, transcriptCheck)
 	if err != nil {

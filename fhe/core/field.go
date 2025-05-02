@@ -100,6 +100,36 @@ func (f *PrimeField) NegAssign(x, z *Element) {
 	z[0] = f.r.Modulus - x[0]
 }
 
+// Pow returns self^exp using the square-and-multiply algorithm
+func (f *PrimeField) Pow(exp uint64, z *Element) *Element {
+	// Initialize result to 1
+	res := One()
+
+	// If exponent is 0, return 1
+	if exp == 0 {
+		return res
+	}
+
+	// Initialize base as a copy of self
+	base := NewElement(z[0])
+
+	// Square and multiply algorithm
+	for exp > 0 {
+		// If current bit is 1, multiply result by the current base
+		if exp&1 == 1 {
+			f.MulAssign(res, base, res)
+		}
+
+		// Square the base
+		f.MulAssign(base, base, base)
+
+		// Move to the next bit
+		exp >>= 1
+	}
+
+	return res
+}
+
 func (f *PrimeField) Select(c int, x0 *Element, x1 *Element) *Element {
 	cC := uint64((int64(c) | -int64(c)) >> 63) // "canonicized" into: 0 if c=0, -1 otherwise
 	z := Zero()

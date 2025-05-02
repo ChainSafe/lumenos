@@ -5,11 +5,11 @@ import (
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
-func Encode(matrix []*rlwe.Ciphertext, rows, rhoInv int, backend *BackendBFV) ([]*rlwe.Ciphertext, error) {
+func Encode(matrix []*rlwe.Ciphertext, rows, rhoInv int, backend *ServerBFV) ([]*rlwe.Ciphertext, error) {
 	size := len(matrix)
 	encoded := make([]*rlwe.Ciphertext, size*rhoInv)
 	for i := 0; i < size; i++ {
-		encoded[i] = matrix[i]
+		encoded[i] = matrix[i].CopyNew()
 	}
 
 	zeroColPt := bgv.NewPlaintext(backend.params, backend.params.MaxLevel())

@@ -9,7 +9,7 @@ import (
 // counter for multiplications in NTT
 var MultiplicationsCounter int
 
-func NTT(values []*rlwe.Ciphertext, size int, backend *BackendBFV) ([]*rlwe.Ciphertext, error) {
+func NTT(values []*rlwe.Ciphertext, size int, backend *ServerBFV) ([]*rlwe.Ciphertext, error) {
 	if err := nttInner(values, size, backend); err != nil {
 		return nil, err
 	}
@@ -17,7 +17,7 @@ func NTT(values []*rlwe.Ciphertext, size int, backend *BackendBFV) ([]*rlwe.Ciph
 }
 
 // nttInner performs NTT on batched ciphertexts using the BGV evaluator
-func nttInner(v []*rlwe.Ciphertext, size int, backend *BackendBFV) error {
+func nttInner(v []*rlwe.Ciphertext, size int, backend *ServerBFV) error {
 	switch size {
 	case 0, 1:
 		return nil
@@ -142,9 +142,8 @@ func nttInner(v []*rlwe.Ciphertext, size int, backend *BackendBFV) error {
 				return err
 			}
 			MultiplicationsCounter++
-			omega8 := backend.Field().RootForward(8)
-			omega8_3 := backend.Field().Mul(omega8, backend.Field().Mul(omega8, omega8))
-			err = backend.Mul(v[i+7], omega8_3.Uint64(), v[i+7])
+			omega8_3 := backend.Field().Pow(3, backend.Field().RootForward(8))
+			err = backend.Mul(v[i+7], omega8_3, v[i+7])
 			if err != nil {
 				return err
 			}

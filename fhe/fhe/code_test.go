@@ -145,7 +145,7 @@ func TestEncode(t *testing.T) {
 	start = time.Now()
 	encodedMatrixCheck := make([][]*core.Element, rows)
 	for i := range matrix {
-		encodedMatrixCheck[i] = encodeReference(matrix[i], rhoInv, &ptField)
+		encodedMatrixCheck[i] = core.Encode(matrix[i], rhoInv, &ptField)
 	}
 	fmt.Printf("Plain RS encoding: %v\n", time.Since(start))
 	// fmt.Printf("Encoded matrix check: %v\n", encodedMatrixCheck)
@@ -164,32 +164,4 @@ func TestEncode(t *testing.T) {
 
 	// Print the number of multiplications after NTT
 	fmt.Printf("Number of multiplications in NTT: %d\n", fhe.MultiplicationsCounter)
-}
-
-// encodeReference performs Reed-Solomon encoding on a single plaintext row.
-// It extends the row by a factor of rhoInv, padding with zeros, and then applies NTT.
-func encodeReference(row []*core.Element, rhoInv int, field *core.PrimeField) []*core.Element {
-	if len(row) == 0 {
-		panic("row is empty")
-	}
-
-	cols := len(row) // Number of columns (original)
-	encodedCols := cols * rhoInv
-
-	// Create the extended row
-	encodedRow := make([]*core.Element, encodedCols)
-	for j := range encodedRow { // Initialize elements to avoid nil pointer dereference
-		encodedRow[j] = core.NewElement(0)
-	}
-
-	// Copy original elements
-	copy(encodedRow, row)
-
-	// Pad the rest with zeros (already initialized, but SetZero is explicit)
-	for j := cols; j < encodedCols; j++ {
-		encodedRow[j].SetZero()
-	}
-
-	// Apply NTT to the extended row
-	return core.NTT(encodedRow, encodedCols, field)
 }

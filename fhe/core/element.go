@@ -96,6 +96,10 @@ func Zero() *Element {
 	return &Element{0}
 }
 
+func One() *Element {
+	return &Element{1}
+}
+
 // SetZero z = 0
 func (z *Element) SetZero() *Element {
 	z[0] = 0
@@ -110,12 +114,12 @@ func (z *Element) SetOne() *Element {
 
 // Equal returns z == x; constant-time
 func (z *Element) Equal(x *Element) bool {
-	return z.NotEqual(x) == 0
+	return (z[0] ^ x[0]) == 0
 }
 
 // NotEqual returns 0 if and only if z == x; constant-time
-func (z *Element) NotEqual(x *Element) uint64 {
-	return (z[0] ^ x[0])
+func (z *Element) NotEqual(x *Element) bool {
+	return (z[0] ^ x[0]) != 0
 }
 
 // IsZero returns z == 0
@@ -173,6 +177,7 @@ func (z *Element) Limbs() [1]uint64 {
 }
 
 func (z *Element) ToBytes() (res []byte) {
+	res = make([]byte, 8)
 	binary.LittleEndian.PutUint64(res, z[0])
 	return
 }

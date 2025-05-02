@@ -10,7 +10,7 @@ import (
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
-type BackendBFV struct {
+type ServerBFV struct {
 	ptField *core.PrimeField
 	params  bgv.Parameters
 	*bgv.Evaluator
@@ -18,14 +18,33 @@ type BackendBFV struct {
 	*rlwe.Encryptor
 }
 
-func NewBackendBFV(plaintextField *core.PrimeField, params bgv.Parameters, pk *rlwe.PublicKey, evk rlwe.EvaluationKeySet) *BackendBFV {
+func NewBackendBFV(plaintextField *core.PrimeField, params bgv.Parameters, pk *rlwe.PublicKey, evk rlwe.EvaluationKeySet) *ServerBFV {
 	evaluator := bgv.NewEvaluator(params, evk)
 	encoder := bgv.NewEncoder(params)
 	encryptor := rlwe.NewEncryptor(params, pk)
-	return &BackendBFV{plaintextField, params, evaluator, encoder, encryptor}
+	return &ServerBFV{plaintextField, params, evaluator, encoder, encryptor}
 }
 
-func (b *BackendBFV) Field() *core.PrimeField {
+func (b *ServerBFV) Field() *core.PrimeField {
+	return b.ptField
+}
+
+type ClientBFV struct {
+	ptField *core.PrimeField
+	params  bgv.Parameters
+	*bgv.Encoder
+	*rlwe.Encryptor
+	*rlwe.Decryptor
+}
+
+func NewClientBFV(plaintextField *core.PrimeField, params bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
+	encoder := bgv.NewEncoder(params)
+	encryptor := rlwe.NewEncryptor(params, sk)
+	decryptor := rlwe.NewDecryptor(params, sk)
+	return &ClientBFV{plaintextField, params, encoder, encryptor, decryptor}
+}
+
+func (b *ClientBFV) Field() *core.PrimeField {
 	return b.ptField
 }
 

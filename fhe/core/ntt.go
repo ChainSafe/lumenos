@@ -44,8 +44,7 @@ func nttInner(v []*Element, size int, field *PrimeField) {
 			// Multiply by roots
 			v[i+5] = field.Mul(v[i+5], field.RootForward(8))
 			v[i+6] = field.Mul(v[i+6], field.RootForward(4))
-			omega8 := field.RootForward(8)
-			omega8_3 := field.Mul(omega8, field.Mul(omega8, omega8))
+			omega8_3 := field.Pow(3, field.RootForward(8))
 			v[i+7] = field.Mul(v[i+7], omega8_3)
 
 			// Second level butterflies
