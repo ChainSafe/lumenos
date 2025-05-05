@@ -238,16 +238,13 @@ func ligeroProveReference(matrix [][]*core.Element, field *core.PrimeField, tran
 }
 
 func flatten(slices [][]*core.Element) []*core.Element {
-	// Calculate total length of the flattened slice
 	totalLen := 0
 	for _, slice := range slices {
 		totalLen += len(slice)
 	}
 
-	// Create result slice with exact capacity needed
 	result := make([]*core.Element, 0, totalLen)
 
-	// Append all elements to the result
 	for _, slice := range slices {
 		result = append(result, slice...)
 	}

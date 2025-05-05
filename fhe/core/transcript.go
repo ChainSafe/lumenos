@@ -40,13 +40,6 @@ func (t *Transcript) AppendCiphertext(label string, ciphertext *rlwe.Ciphertext)
 	t.AppendMessage([]byte(label), bytes)
 }
 
-// func (t *Transcript) ReadCiphertext(label string) *rlwe.Ciphertext {
-// 	var ct rlwe.Ciphertext
-
-// 	ct.UnmarshalBinary(t.ExtractBytes([]byte(label), CiphertextBytes))
-// 	return rlwe.NewCiphertext(t.params, t.params.MaxLevel())
-// }
-
 func (t *Transcript) SampleField(label string) *Element {
 	bytes := t.ExtractBytes([]byte(label), ElementBytes)
 	return NewElement(binary.LittleEndian.Uint64(bytes))

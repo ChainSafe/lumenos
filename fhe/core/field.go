@@ -9,17 +9,6 @@ import (
 )
 
 // Element represents a field element stored on 1 words (uint64)
-//
-// Element are assumed to be in Montgomery form in all methods.
-//
-// Modulus q =
-//
-//	q[base10] = 288230376150630401
-//	q[base16] = 0x3FFFFFFFFEF8001
-//
-// # Warning
-//
-// This code has not been audited and is provided as-is. In particular, there is no security guarantees such as constant time implementation or side-channel attack resistance.
 type PrimeField struct {
 	r *ring.SubRing
 }
