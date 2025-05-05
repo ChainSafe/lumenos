@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	rows    = 2
+	rows    = 16
 	cols    = 16
 	Modulus = 0x3ee0001
 	rhoInv  = 2
@@ -20,11 +20,18 @@ const (
 	// Modulus = 144115188075593729 // allows LogN >= 15
 )
 
-func TestLigero(t *testing.T) {
+func TestLigeroE2E(t *testing.T) {
+	run(t, testLigeroE2E)
+}
+
+func TestLigeroRLC(t *testing.T) {
+	run(t, testLigeroRLC)
+}
+
+func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV, *testing.T)) {
 	// Reset the multiplication counter at the start
 	fhe.MultiplicationsCounter = 0
 
-	programStart := time.Now()
 	start := time.Now()
 
 	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(cols, 13, Modulus)
@@ -58,14 +65,17 @@ func TestLigero(t *testing.T) {
 	}
 
 	// Initialize the necessary objects
-	encoder := bgv.NewEncoder(params)
-	decryptor := rlwe.NewDecryptor(params, sk)
-	backend := fhe.NewBackendBFV(&ptField, params, pk, evk)
+	server := fhe.NewBackendBFV(&ptField, params, pk, evk)
+	client := fhe.NewClientBFV(&ptField, params, sk)
 
-	start = time.Now()
+	test(params, server, client, t)
+}
+
+func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T) {
+	start := time.Now()
 	matrix, batchedCols, err := makeMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
-		if err := encoder.Encode(u, plaintext); err != nil {
+		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)
 		}
 		return plaintext
@@ -78,7 +88,7 @@ func TestLigero(t *testing.T) {
 	start = time.Now()
 	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
 	for i, plaintext := range batchedCols {
-		ciphertext, err := backend.EncryptNew(plaintext)
+		ciphertext, err := s.EncryptNew(plaintext)
 		if err != nil {
 			panic(err)
 		}
@@ -86,7 +96,6 @@ func TestLigero(t *testing.T) {
 	}
 	fmt.Printf("Encryption took: %v\n", time.Since(start))
 
-	transcript := core.NewTranscript("test")
 	ligero := &fhe.LigeroCommitter{
 		LigeroMetadata: fhe.LigeroMetadata{
 			Rows:    rows,
@@ -96,7 +105,7 @@ func TestLigero(t *testing.T) {
 		},
 	}
 
-	comm, _, err := ligero.Commit(ciphertexts, backend, transcript)
+	comm, _, err := ligero.Commit(ciphertexts, s)
 	if err != nil {
 		panic(err)
 	}
@@ -104,7 +113,69 @@ func TestLigero(t *testing.T) {
 	z := core.NewElement(1)
 
 	start = time.Now()
-	result, err := comm.Prove(z, backend, transcript)
+	transcript := core.NewTranscript("test")
+	proof, err := comm.Prove(z, s, transcript)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("FHE evaluation took: %v\n", time.Since(start))
+
+	verifierTranscript := core.NewTranscript("test")
+
+	poly := core.NewDensePoly(flatten(matrix))
+	value := poly.Evaluate(s.Field(), z)
+	err = proof.Verify(z, value, c, verifierTranscript)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Number of multiplications: %d\n", fhe.MultiplicationsCounter)
+}
+
+func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T) {
+	start := time.Now()
+	matrix, batchedCols, err := makeMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
+		if err := c.Encode(u, plaintext); err != nil {
+			panic(err)
+		}
+		return plaintext
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Matrix generation and encoding took: %v\n", time.Since(start))
+	// Encrypt the batched columns
+	start = time.Now()
+	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
+	for i, plaintext := range batchedCols {
+		ciphertext, err := s.EncryptNew(plaintext)
+		if err != nil {
+			panic(err)
+		}
+		ciphertexts[i] = ciphertext
+	}
+	fmt.Printf("Encryption took: %v\n", time.Since(start))
+
+	ligero := &fhe.LigeroCommitter{
+		LigeroMetadata: fhe.LigeroMetadata{
+			Rows:    rows,
+			Cols:    cols,
+			RhoInv:  rhoInv,
+			Queries: 1,
+		},
+	}
+
+	comm, _, err := ligero.Commit(ciphertexts, s)
+	if err != nil {
+		panic(err)
+	}
+
+	z := core.NewElement(1)
+
+	start = time.Now()
+	transcript := core.NewTranscript("test")
+	result, err := comm.Prove(z, s, transcript)
 	if err != nil {
 		panic(err)
 	}
@@ -115,12 +186,11 @@ func TestLigero(t *testing.T) {
 	vMat := make([]*core.Element, cols)
 
 	for j, ciphertext := range result.MatR {
-		plaintext := decryptor.DecryptNew(ciphertext)
+		plaintext := c.DecryptNew(ciphertext)
 		column := make([]uint64, rows)
-		if err := encoder.Decode(plaintext, column); err != nil {
+		if err := c.Decode(plaintext, column); err != nil {
 			panic(err)
 		}
-		fmt.Printf("column: %v\n", column)
 		vMat[j] = core.NewElement(column[0])
 	}
 	fmt.Printf("Decryption and decoding took: %v\n", time.Since(start))
@@ -128,7 +198,7 @@ func TestLigero(t *testing.T) {
 	transcriptCheck := core.NewTranscript("test")
 	transcriptCheck.AppendBytes("root", comm.Tree.MerkleRoot())
 	start = time.Now()
-	vMatCheck, err := ligeroProveReference(matrix, ptField, transcriptCheck)
+	vMatCheck, err := ligeroProveReference(matrix, s.Field(), transcriptCheck)
 	if err != nil {
 		panic(err)
 	}
@@ -143,16 +213,13 @@ func TestLigero(t *testing.T) {
 	}
 
 	fmt.Println("Results match")
-	fmt.Printf("Total execution time: %v\n", time.Since(programStart))
-
 	fmt.Printf("Number of multiplications: %d\n", fhe.MultiplicationsCounter)
 }
 
-func ligeroProveReference(matrix [][]*core.Element, field core.PrimeField, transcript *core.Transcript) ([]*core.Element, error) {
+func ligeroProveReference(matrix [][]*core.Element, field *core.PrimeField, transcript *core.Transcript) ([]*core.Element, error) {
 	rows := len(matrix)
 	r := make([]*core.Element, rows)
 	transcript.SampleFields("r", r)
-
 	// Compute inner products of each row with r
 	cols := len(matrix[0])
 	rowProducts := make([]*core.Element, cols)
@@ -168,4 +235,22 @@ func ligeroProveReference(matrix [][]*core.Element, field core.PrimeField, trans
 	}
 
 	return rowProducts, nil
+}
+
+func flatten(slices [][]*core.Element) []*core.Element {
+	// Calculate total length of the flattened slice
+	totalLen := 0
+	for _, slice := range slices {
+		totalLen += len(slice)
+	}
+
+	// Create result slice with exact capacity needed
+	result := make([]*core.Element, 0, totalLen)
+
+	// Append all elements to the result
+	for _, slice := range slices {
+		result = append(result, slice...)
+	}
+
+	return result
 }

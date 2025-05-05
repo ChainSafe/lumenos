@@ -6,9 +6,9 @@ import (
 )
 
 func Encode(matrix []*rlwe.Ciphertext, rows, rhoInv int, backend *ServerBFV) ([]*rlwe.Ciphertext, error) {
-	size := len(matrix)
-	encoded := make([]*rlwe.Ciphertext, size*rhoInv)
-	for i := 0; i < size; i++ {
+	cols := len(matrix)
+	encoded := make([]*rlwe.Ciphertext, cols*rhoInv)
+	for i := 0; i < cols; i++ {
 		encoded[i] = matrix[i].CopyNew()
 	}
 
@@ -21,11 +21,11 @@ func Encode(matrix []*rlwe.Ciphertext, rows, rhoInv int, backend *ServerBFV) ([]
 		return nil, err
 	}
 
-	for i := size; i < size*rhoInv; i++ {
+	for i := cols; i < cols*rhoInv; i++ {
 		encoded[i] = zeroCol.CopyNew()
 	}
 
-	ntt, err := NTT(encoded, size*rhoInv, backend)
+	ntt, err := NTT(encoded, cols*rhoInv, backend)
 	if err != nil {
 		return nil, err
 	}

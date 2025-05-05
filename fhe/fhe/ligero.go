@@ -62,7 +62,7 @@ func NewLigeroCommitter(securityBits float64, size int, rhoInv int) (*LigeroComm
 	}, nil
 }
 
-func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV, transcript *core.Transcript) (*LigeroProver, []byte, error) {
+func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV) (*LigeroProver, []byte, error) {
 	encoded, err := Encode(matrix, c.Rows, c.RhoInv, backend)
 	if err != nil {
 		return nil, nil, err
@@ -103,7 +103,6 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 
 	r := make([]uint64, rows)
 	transcript.SampleUints("r", r)
-
 	rPt := bgv.NewPlaintext(backend.params, backend.params.MaxLevel())
 	if err := backend.Encode(r, rPt); err != nil {
 		return nil, err
@@ -120,8 +119,6 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 			return nil, err
 		}
 
-		// TODO: store proof data in transcript
-		// transcript.AppendCiphertext("rMat", rMat)
 		matR[i] = colR
 	}
 
@@ -182,10 +179,10 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 	return proof, nil
 }
 
-func (p *Proof) Verify(point *core.Element, value *core.Element, proof *Proof, backend *ClientBFV, transcript *core.Transcript) error {
-	rows := proof.Metadata.Rows
-	cols := proof.Metadata.Cols
-	root := proof.Root
+func (p *Proof) Verify(point *core.Element, value *core.Element, backend *ClientBFV, transcript *core.Transcript) error {
+	rows := p.Metadata.Rows
+	cols := p.Metadata.Cols
+	root := p.Root
 
 	transcript.AppendBytes("root", root)
 
@@ -193,21 +190,23 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, proof *Proof, b
 	transcript.SampleFields("r", r)
 
 	// Decrypt queried columns
-	queriedCols := make([][]*core.Element, len(proof.QueriedCols))
-	for j, col := range proof.QueriedCols {
+	queriedCols := make([][]*core.Element, len(p.QueriedCols))
+	for j, col := range p.QueriedCols {
 		plaintext := backend.DecryptNew(col)
 		column := make([]uint64, rows)
 		if err := backend.Decode(plaintext, column); err != nil {
 			return err
 		}
+
+		queriedCols[j] = make([]*core.Element, rows)
 		for i := range column {
-			queriedCols[i][j] = core.NewElement(column[i])
+			queriedCols[j][i] = core.NewElement(column[i])
 		}
 	}
 
 	// Decrypt and encode
-	matR := make([]*core.Element, len(proof.MatR))
-	for i, colR := range proof.MatR {
+	matR := make([]*core.Element, len(p.MatR))
+	for i, colR := range p.MatR {
 		pt := backend.DecryptNew(colR) // TODO: can descrypt just first slot?
 		column := make([]uint64, rows)
 		if err := backend.Decode(pt, column); err != nil {
@@ -216,11 +215,11 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, proof *Proof, b
 		matR[i] = core.NewElement(column[0])
 	}
 
-	encodedMatR := core.Encode(matR, proof.Metadata.RhoInv, backend.Field())
+	encodedMatR := core.Encode(matR, p.Metadata.RhoInv, backend.Field())
 
-	matZ := make([]*core.Element, len(proof.MatZ))
-	for i, colR := range proof.MatR {
-		pt := backend.DecryptNew(colR) // TODO: can descrypt just first slot?
+	matZ := make([]*core.Element, len(p.MatZ))
+	for i, colZ := range p.MatZ {
+		pt := backend.DecryptNew(colZ) // TODO: can descrypt just first slot?
 		column := make([]uint64, rows)
 		if err := backend.Decode(pt, column); err != nil {
 			return err
@@ -228,7 +227,7 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, proof *Proof, b
 		matZ[i] = core.NewElement(column[0])
 	}
 
-	encodedMatZ := core.Encode(matZ, proof.Metadata.RhoInv, backend.Field())
+	encodedMatZ := core.Encode(matZ, p.Metadata.RhoInv, backend.Field())
 
 	transcript.AppendField("point", point)
 
@@ -252,21 +251,21 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, proof *Proof, b
 		backend.Field().MulAssign(powB, zPow, powB)
 	}
 
-	extCols := cols * proof.Metadata.RhoInv
-	queryIndices := sampleQueryIndices(transcript, proof.Metadata.Queries, extCols)
+	extCols := cols * p.Metadata.RhoInv
+	queryIndices := sampleQueryIndices(transcript, p.Metadata.Queries, extCols)
 
 	for i, queryColIdx := range queryIndices {
-		extColCt := proof.QueriedCols[i]
-		if ok, err := core.VerifyMerklePath(extColCt, proof.MerklePaths[i], root); err != nil || !ok {
+		extColCt := p.QueriedCols[i]
+		if ok, err := core.VerifyMerklePath(extColCt, p.MerklePaths[i], root, uint(queryColIdx)); err != nil || !ok {
 			return fmt.Errorf("failed to verify merkle path for column %d", queryColIdx)
 		}
 
 		if innerProduct(queriedCols[i], r, backend.Field()).NotEqual(encodedMatR[queryColIdx]) {
-			return fmt.Errorf("well-formedness check failed for column %d", queryColIdx)
+			return fmt.Errorf("well-formedness R check failed for column %d", queryColIdx)
 		}
 
 		if innerProduct(queriedCols[i], b, backend.Field()).NotEqual(encodedMatZ[queryColIdx]) {
-			return fmt.Errorf("well-formedness check failed for column %d", queryColIdx)
+			return fmt.Errorf("well-formedness B check failed for column %d", queryColIdx)
 		}
 	}
 

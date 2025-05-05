@@ -142,7 +142,7 @@ func nttInner(v []*rlwe.Ciphertext, size int, backend *ServerBFV) error {
 				return err
 			}
 			MultiplicationsCounter++
-			omega8_3 := backend.Field().Pow(3, backend.Field().RootForward(8))
+			omega8_3 := backend.Field().Pow(3, backend.Field().RootForward(8)).Uint64()
 			err = backend.Mul(v[i+7], omega8_3, v[i+7])
 			if err != nil {
 				return err
@@ -268,8 +268,8 @@ func nttInner(v []*rlwe.Ciphertext, size int, backend *ServerBFV) error {
 				idx := step
 				for j := 1; j < n2; j++ {
 					idx %= backend.Field().N()
-
-					err := backend.Mul(chunk[i*n2+j], backend.Field().RootForwardUint64(idx), chunk[i*n2+j])
+					twiddle := backend.Field().RootForwardUint64(idx)
+					err := backend.Mul(chunk[i*n2+j], twiddle, chunk[i*n2+j])
 					if err != nil {
 						return err
 					}

@@ -175,50 +175,42 @@ func (m *MerkleTree) GetMerklePath(index uint) (MerklePath, error) {
 	if m == nil || m.Root == nil {
 		return nil, errors.New("cannot get path from an empty or nil tree")
 	}
-	if int(index) >= len(m.Leafs) {
-		return nil, fmt.Errorf("index %d out of bounds for %d leaves", index, len(m.Leafs))
+	numLeaves := uint(len(m.Leafs))
+	if index >= numLeaves {
+		return nil, fmt.Errorf("index %d out of bounds for %d leaves", index, numLeaves)
 	}
 
 	leafNode := m.Leafs[index]
 	if leafNode == nil {
-		// This should ideally not happen if index is in bounds
+		// This should ideally not happen if index is in bounds and Leafs is populated correctly
 		return nil, fmt.Errorf("internal error: leaf node at index %d is nil", index)
 	}
 
-	var path [][]byte
+	var path MerklePath
 	currentNode := leafNode
 
 	for currentNode.Parent != nil {
 		parent := currentNode.Parent
 		var siblingHash []byte
 
-		// Check node identity for determining sibling
 		if parent.Left == currentNode {
-			// Sibling is the right node.
-			// Need its hash. If Right == Left (odd node case), use current node's hash.
 			if parent.Right != nil {
-				if parent.Left == parent.Right {
-					siblingHash = currentNode.Hash // Use own hash if it was duplicated
-				} else {
-					siblingHash = parent.Right.Hash
-				}
+				siblingHash = parent.Right.Hash
 			} else {
-				return nil, errors.New("internal inconsistency: parent node missing right child")
+				return nil, errors.New("internal inconsistency: parent node missing right child unexpectedly")
 			}
 		} else if parent.Right == currentNode {
-			// Sibling is the left node. It must exist.
 			if parent.Left != nil {
 				siblingHash = parent.Left.Hash
 			} else {
-				return nil, errors.New("internal inconsistency: parent node missing left child")
+				return nil, errors.New("internal inconsistency: parent node missing left child unexpectedly")
 			}
 		} else {
 			return nil, errors.New("internal inconsistency: node is not a child of its parent")
 		}
 
 		if siblingHash == nil {
-			// This case should be covered above, but defensive check
-			return nil, errors.New("internal inconsistency: failed to determine sibling hash")
+			return nil, errors.New("internal inconsistency: sibling node hash is nil")
 		}
 
 		path = append(path, siblingHash)
@@ -228,40 +220,48 @@ func (m *MerkleTree) GetMerklePath(index uint) (MerklePath, error) {
 	return path, nil
 }
 
-func VerifyMerklePath(leaf Leaf, path [][]byte, root []byte) (bool, error) {
+// VerifyMerklePath checks if a given leaf, its Merkle path, and the leaf's original index
+// correctly hash up to the provided root hash.
+func VerifyMerklePath(leaf Leaf, path MerklePath, root []byte, index uint) (bool, error) {
 	if leaf == nil {
 		return false, errors.New("leaf cannot be nil")
 	}
 	if root == nil {
 		return false, errors.New("root hash cannot be nil")
 	}
-
 	h := sha256.New()
 
+	// Calculate the initial hash of the leaf
 	var buf bytes.Buffer
 	if _, err := leaf.WriteTo(&buf); err != nil {
 		return false, fmt.Errorf("failed to write leaf to buffer for verification: %w", err)
 	}
-	h.Write(buf.Bytes())
+	if _, err := h.Write(buf.Bytes()); err != nil {
+		return false, fmt.Errorf("failed to write leaf bytes to hash for verification: %w", err)
+	}
 	currentHash := h.Sum(nil)
 	h.Reset()
 
+	currentIndex := index
 	for _, siblingHash := range path {
 		if siblingHash == nil {
 			return false, errors.New("path contains a nil hash")
 		}
 
-		hash1 := currentHash
-		hash2 := siblingHash
-		if bytes.Compare(hash1, hash2) > 0 {
-			hash1, hash2 = hash2, hash1
+		var combined []byte
+		if currentIndex%2 == 0 {
+			combined = append(currentHash, siblingHash...)
+		} else {
+			combined = append(siblingHash, currentHash...)
 		}
 
-		combined := append(hash1, hash2...)
-
-		h.Write(combined)
+		if _, err := h.Write(combined); err != nil {
+			return false, fmt.Errorf("failed to write combined hash during verification: %w", err)
+		}
 		currentHash = h.Sum(nil)
 		h.Reset()
+
+		currentIndex /= 2
 	}
 
 	return bytes.Equal(currentHash, root), nil
