@@ -1,7 +1,10 @@
+// TODO: try matrix-based DFT evaluator.
+// Reference: https://github.com/tuneinsight/lattigo/blob/ced00885fbfa527d71b8e5ba93c07a882ca16fde/circuits/ckks/dft/dft.go#L2
+
 package fhe
 
 import (
-	"github.com/timofey/fhe-experiments/lattigo/core"
+	"github.com/nulltea/lumenos/core"
 
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 )

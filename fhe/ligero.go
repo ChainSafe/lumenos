@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/timofey/fhe-experiments/lattigo/core"
+	"github.com/nulltea/lumenos/core"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )

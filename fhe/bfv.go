@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/bits"
 
-	"github.com/timofey/fhe-experiments/lattigo/core"
+	"github.com/nulltea/lumenos/core"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
@@ -30,22 +30,28 @@ func (b *ServerBFV) Field() *core.PrimeField {
 }
 
 type ClientBFV struct {
-	ptField *core.PrimeField
-	params  bgv.Parameters
+	ptField   *core.PrimeField
+	paramsFHE bgv.Parameters
 	*bgv.Encoder
 	*rlwe.Encryptor
 	*rlwe.Decryptor
+	sk *rlwe.SecretKey
 }
 
-func NewClientBFV(plaintextField *core.PrimeField, params bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
-	encoder := bgv.NewEncoder(params)
-	encryptor := rlwe.NewEncryptor(params, sk)
-	decryptor := rlwe.NewDecryptor(params, sk)
-	return &ClientBFV{plaintextField, params, encoder, encryptor, decryptor}
+func NewClientBFV(plaintextField *core.PrimeField, paramsFHE bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
+	encoder := bgv.NewEncoder(paramsFHE)
+	encryptor := rlwe.NewEncryptor(paramsFHE, sk)
+	decryptor := rlwe.NewDecryptor(paramsFHE, sk)
+	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk}
 }
 
 func (b *ClientBFV) Field() *core.PrimeField {
 	return b.ptField
+}
+
+func (b *ClientBFV) GetRingSwitchEvk(paramsPoD bgv.Parameters) (*rlwe.EvaluationKey, *rlwe.SecretKey) {
+	skPoD := rlwe.NewKeyGenerator(paramsPoD).GenSecretKeyNew()
+	return rlwe.NewKeyGenerator(b.paramsFHE).GenEvaluationKeyNew(b.sk, skPoD), skPoD
 }
 
 // GenerateBGVParamsForNTT generates BGV parameter based on the NTT size
@@ -107,10 +113,6 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 	for i := 0; i < numPPrimes; i++ {
 		logP[i] = 60
 	}
-
-	fmt.Printf("logQ: %v\n", logQ)
-	fmt.Printf("logP: %v\n", logP)
-	fmt.Printf("plaintextModulus: %d\n", plaintextModulus)
 
 	paramsLit := bgv.ParametersLiteral{
 		LogN:             logN,

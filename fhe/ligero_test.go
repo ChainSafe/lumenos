@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/timofey/fhe-experiments/lattigo/core"
-	"github.com/timofey/fhe-experiments/lattigo/fhe"
+	"github.com/nulltea/lumenos/core"
+	"github.com/nulltea/lumenos/fhe"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
@@ -73,7 +73,7 @@ func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV,
 
 func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T) {
 	start := time.Now()
-	matrix, batchedCols, err := makeMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := randomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)
@@ -134,7 +134,7 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 
 func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T) {
 	start := time.Now()
-	matrix, batchedCols, err := makeMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := randomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)

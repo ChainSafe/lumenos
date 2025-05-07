@@ -1,4 +1,4 @@
-module github.com/timofey/fhe-experiments/lattigo
+module github.com/nulltea/lumenos
 
 go 1.23.5
 

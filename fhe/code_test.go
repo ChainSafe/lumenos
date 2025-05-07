@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/timofey/fhe-experiments/lattigo/core"
-	"github.com/timofey/fhe-experiments/lattigo/fhe"
+	"github.com/nulltea/lumenos/core"
+	"github.com/nulltea/lumenos/fhe"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 	"golang.org/x/crypto/chacha20"
 )
 
-// makeMatrix generates a matrix in both row-major and column-major
-func makeMatrix(rows, cols int, batchEncoder func([]uint64) *rlwe.Plaintext) ([][]*core.Element, []*rlwe.Plaintext, error) {
+// randomMatrix generates a matrix in both row-major and column-major
+func randomMatrix(rows, cols int, batchEncoder func([]uint64) *rlwe.Plaintext) ([][]*core.Element, []*rlwe.Plaintext, error) {
 	if rows <= 0 || cols <= 0 {
 		return nil, nil, fmt.Errorf("dimensions must be positive")
 	}
@@ -87,7 +87,7 @@ func TestEncode(t *testing.T) {
 	backend := fhe.NewBackendBFV(&ptField, params, pk, nil)
 
 	start = time.Now()
-	matrix, batchedCols, err := makeMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := randomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := encoder.Encode(u, plaintext); err != nil {
 			panic(err)
