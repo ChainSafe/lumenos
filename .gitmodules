@@ -1,0 +1,4 @@
+[submodule "vdec/c"]
+	path = vdec/c
+	url = https://github.com/nulltea/vdec-lazer
+	branch = vdec
