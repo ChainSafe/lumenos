@@ -28,15 +28,6 @@ func main() {
 	kgenFHE := rlwe.NewKeyGenerator(params)
 	sk, _ := kgenFHE.GenKeyPairNew()
 
-	// Crucial to use the same moduli
-	qs, ps := make([]uint64, len(params.Q())), make([]uint64, len(params.P()))
-	for i, qi := range params.Q() {
-		qs[i] = qi
-	}
-	for i, pi := range params.P() {
-		ps[i] = pi
-	}
-
 	server := struct {
 		*bgv.Encoder
 		*rlwe.Encryptor

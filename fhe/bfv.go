@@ -36,13 +36,28 @@ type ClientBFV struct {
 	*rlwe.Encryptor
 	*rlwe.Decryptor
 	sk *rlwe.SecretKey
+
+	paramsPoD *bgv.Parameters
+	pod       *ServerBFV
+	podSk     *rlwe.SecretKey
 }
 
 func NewClientBFV(plaintextField *core.PrimeField, paramsFHE bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
 	encoder := bgv.NewEncoder(paramsFHE)
 	encryptor := rlwe.NewEncryptor(paramsFHE, sk)
 	decryptor := rlwe.NewDecryptor(paramsFHE, sk)
-	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk}
+	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk, nil, nil, nil}
+}
+
+func (b *ClientBFV) WithPoD(plaintextField *core.PrimeField, paramsPoD bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
+	b.paramsPoD = &paramsPoD
+	b.pod = NewBackendBFV(plaintextField, paramsPoD, nil, nil)
+	b.podSk = sk
+	return b
+}
+
+func (b *ClientBFV) PoDBackend() *ServerBFV {
+	return b.pod
 }
 
 func (b *ClientBFV) Field() *core.PrimeField {
