@@ -1,13 +1,11 @@
 # Makefile for building the vdec Go application and its C dependencies.
 # This Makefile is intended to be run from the workspace root directory.
 
-# Variables
 VDEC_DIR = vdec
 C_SUBDIR = $(VDEC_DIR)/c
-GO_SOURCE = $(VDEC_DIR)/vdec.go
-GO_EXE_NAME = vdec_app # Executable will be created in the root directory
+GO_SOURCE = main.go
+GO_EXE_NAME = vdec_test
 
-# Phony targets
 .PHONY: all build_c build_go run clean clean_c clean_go build
 
 # Default target: build the Go application

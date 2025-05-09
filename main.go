@@ -2,12 +2,7 @@ package main
 
 import (
 	"fmt"
-	"math/big"
-	"os"
-	"strconv"
-	"strings"
 
-	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/vdec"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
@@ -18,6 +13,56 @@ const (
 )
 
 func main() {
+	params, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
+		LogN:             11,
+		LogQ:             []int{56},
+		LogP:             []int{55, 55},
+		PlaintextModulus: 0x3ee0001,
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	// Generate keys
+	kgenFHE := rlwe.NewKeyGenerator(params)
+	sk, _ := kgenFHE.GenKeyPairNew()
+
+	// Crucial to use the same moduli
+	qs, ps := make([]uint64, len(params.Q())), make([]uint64, len(params.P()))
+	for i, qi := range params.Q() {
+		qs[i] = qi
+	}
+	for i, pi := range params.P() {
+		ps[i] = pi
+	}
+
+	server := struct {
+		*bgv.Encoder
+		*rlwe.Encryptor
+	}{
+		Encoder:   bgv.NewEncoder(params),
+		Encryptor: rlwe.NewEncryptor(params, sk),
+	}
+
+	m := []uint64{1}
+	plaintext := bgv.NewPlaintext(params, params.MaxLevel())
+	plaintext.IsBatched = false
+	if err := server.Encode(m, plaintext); err != nil {
+		panic(err)
+	}
+
+	ct, err := server.Encryptor.EncryptNew(plaintext)
+	if err != nil {
+		panic(err)
+	}
+
+	seed := []byte{2}
+
+	vdec.CallVdecProver(seed, params, sk, ct, m)
+}
+
+func test_ring_switch() {
 	paramsFHE, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
 		LogN:             11,
 		LogQ:             []int{56},
@@ -120,91 +165,4 @@ func main() {
 	if m[0] != mCheck[0] {
 		panic("data mismatch")
 	}
-
-	// Generate header file with cryptographic parameters
-	if err := generateHeaderFile("vdec_ct.h", sk, ct, m, paramsFHE); err != nil {
-		fmt.Printf("Failed to generate header file: %v\n", err)
-	} else {
-		fmt.Println("Successfully generated vdec_ct.h")
-	}
-}
-
-func generateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m []uint64, params bgv.Parameters) error {
-	ringQ := params.RingQ().AtLevel(sk.LevelQ())
-	modQ := ringQ.ModulusAtLevel[sk.LevelQ()]
-	modT := params.RingT().Modulus()
-
-	// Convert secret key to string
-	skCoeffsString := core.RingPolyToStringsCentered(ringQ, *sk.Value.Q.CopyNew(), true, true)
-
-	// Convert ciphertext components to strings
-	// fmt.Printf("ct.MetaData: %v, %v\n", ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
-	ct0String := core.RingPolyToStringsCentered(ringQ, *ct.Value[0].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
-	ct1String := core.RingPolyToStringsCentered(ringQ, *ct.Value[1].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
-
-	pt := bgv.NewPlaintext(params, params.MaxLevel())
-	pt.IsBatched = false
-	ptPoly := ringQ.NewPoly()
-	delta := params.DefaultScale()
-	fmt.Printf("modQ: %v, modT: %v\n", modQ, modT)
-	// delta.Value = *new(big.Float).SetMode(big.ToNearestEven).Quo(
-	// 	new(big.Float).SetInt(modQ),
-	// 	new(big.Float).SetInt(modT),
-	// )
-
-	delta.Value = *new(big.Float).Add(
-		new(big.Float).Quo(
-			new(big.Float).SetInt(modQ),
-			new(big.Float).SetInt(modT),
-		),
-		new(big.Float).SetFloat64(0.5),
-	)
-
-	vdec.EncodeRingQ(m, params, delta, ptPoly)
-
-	// Convert plaintext to string
-	ptString := core.RingPolyToStringsCentered(ringQ, ptPoly, false, false)
-
-	// Format the values for C header
-	formatForHeader := func(values []string) string {
-		var builder strings.Builder
-		for i, val := range values {
-			if i > 0 && i%5 == 0 {
-				builder.WriteString(",\n    ")
-			} else if i > 0 {
-				builder.WriteString(", ")
-			}
-			builder.WriteString(val)
-		}
-		return builder.String()
-	}
-
-	modQStr := strconv.FormatUint(modQ.Uint64(), 10)
-	modTStr := strconv.FormatUint(modT.Uint64(), 10)
-	// Create header content
-	headerContent := fmt.Sprintf(`#ifndef VDEC_CT_H
-#define VDEC_CT_H
-#include <stdint.h>
-
-// Modulus Q = %s
-// Modulus T = %s
-
-static const int64_t static_sk[] = {
-    %s
-};
-static const int64_t static_ct0[] = {
-    %s
-};
-static const int64_t static_ct1[] = {
-    %s
-};
-static const int64_t static_m_delta[] = {
-    %s
-};
-
-#endif /* VDEC_CT_H */
-`, modQStr, modTStr, formatForHeader(skCoeffsString), formatForHeader(ct0String), formatForHeader(ct1String), formatForHeader(ptString))
-
-	// Write to file
-	return os.WriteFile(fileName, []byte(headerContent), 0644)
 }
