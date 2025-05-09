@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/nulltea/lumenos/core"
+	"github.com/nulltea/lumenos/vdec"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
-	"github.com/tuneinsight/lattigo/v6/ring"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
@@ -86,7 +86,6 @@ func main() {
 	}
 
 	ct, err := server.Encryptor.EncryptNew(plaintext)
-
 	if err != nil {
 		panic(err)
 	}
@@ -136,12 +135,12 @@ func generateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext
 	modT := params.RingT().Modulus()
 
 	// Convert secret key to string
-	skCoeffsString := core.RingPolyToBigintCentered(ringQ, *sk.Value.Q.CopyNew(), true, true)
+	skCoeffsString := core.RingPolyToStringsCentered(ringQ, *sk.Value.Q.CopyNew(), true, true)
 
 	// Convert ciphertext components to strings
 	// fmt.Printf("ct.MetaData: %v, %v\n", ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
-	ct0String := core.RingPolyToBigintCentered(ringQ, *ct.Value[0].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
-	ct1String := core.RingPolyToBigintCentered(ringQ, *ct.Value[1].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
+	ct0String := core.RingPolyToStringsCentered(ringQ, *ct.Value[0].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
+	ct1String := core.RingPolyToStringsCentered(ringQ, *ct.Value[1].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 
 	pt := bgv.NewPlaintext(params, params.MaxLevel())
 	pt.IsBatched = false
@@ -161,10 +160,10 @@ func generateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext
 		new(big.Float).SetFloat64(0.5),
 	)
 
-	EncodeRingQ(m, params, delta, ptPoly)
+	vdec.EncodeRingQ(m, params, delta, ptPoly)
 
 	// Convert plaintext to string
-	ptString := core.RingPolyToBigintCentered(ringQ, ptPoly, false, false)
+	ptString := core.RingPolyToStringsCentered(ringQ, ptPoly, false, false)
 
 	// Format the values for C header
 	formatForHeader := func(values []string) string {
@@ -208,53 +207,4 @@ static const int64_t static_m_delta[] = {
 
 	// Write to file
 	return os.WriteFile(fileName, []byte(headerContent), 0644)
-}
-
-func EncodeRingQ(values bgv.IntegerSlice, params bgv.Parameters, delta rlwe.Scale, pQ ring.Poly) (err error) {
-	ecd := bgv.NewEncoder(params)
-	ringT := params.RingT()
-	ringQ := params.RingQ().AtLevel(params.MaxLevel())
-	N := ringT.N()
-	T := ringT.SubRings[0].Modulus
-	BRC := ringT.SubRings[0].BRedConstant
-
-	bufT := ringT.NewPoly()
-	ptT := bufT.Coeffs[0]
-
-	var valLen int
-	switch values := values.(type) {
-	case []uint64:
-
-		if len(values) > N {
-			return fmt.Errorf("cannot Encode (TimeDomain): len(values)=%d > N=%d", len(values), N)
-		}
-
-		copy(ptT, values)
-		valLen = len(values)
-	case []int64:
-
-		if len(values) > N {
-			return fmt.Errorf("cannot Encode (TimeDomain: len(values)=%d > N=%d", len(values), N)
-		}
-
-		var sign, abs uint64
-		for i, c := range values {
-			sign = uint64(c) >> 63
-			abs = ring.BRedAdd(uint64(c*((int64(sign)^1)-int64(sign))), T, BRC)
-			ptT[i] = sign*(T-abs) | (sign^1)*abs
-		}
-
-		valLen = len(values)
-	}
-
-	for i := valLen; i < N; i++ {
-		ptT[i] = 0
-	}
-
-	fmt.Printf("delta: %v\n", delta.Uint64())
-
-	ecd.RingT2Q(params.MaxLevel(), false, bufT, pQ)
-	ringQ.MulScalar(pQ, delta.Uint64(), pQ)
-
-	return nil
 }
