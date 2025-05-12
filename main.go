@@ -1,3 +1,5 @@
+//go:generate make build
+
 package main
 
 import (
@@ -50,7 +52,13 @@ func main() {
 
 	seed := []byte{2}
 
+	fmt.Println("Generating proof...")
 	vdec.CallVdecProver(seed, params, sk, ct, m)
+	// defer vdec.FreeProof(&proof)
+	// fmt.Println("Proof generated.")
+
+	// res := vdec.CallVerifyVdecLnpTbox(&proof)
+	// fmt.Printf("res: %v\n", res)
 }
 
 func test_ring_switch() {

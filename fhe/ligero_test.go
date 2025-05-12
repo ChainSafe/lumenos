@@ -73,7 +73,7 @@ func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV,
 
 func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T) {
 	start := time.Now()
-	matrix, batchedCols, err := randomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)
@@ -134,7 +134,7 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 
 func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T) {
 	start := time.Now()
-	matrix, batchedCols, err := randomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)

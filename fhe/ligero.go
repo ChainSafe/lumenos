@@ -73,6 +73,7 @@ func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV) 
 		leafs[i] = encoded[i].CopyNew()
 	}
 
+	// TODO: Merkle tree with leafs -- inner prouducts of columns and some random vector, cheaper?
 	tree, err := core.NewTree(leafs)
 	if err != nil {
 		return nil, nil, err
@@ -256,6 +257,7 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, backend *Client
 
 	for i, queryColIdx := range queryIndices {
 		extColCt := p.QueriedCols[i]
+
 		if ok, err := core.VerifyMerklePath(extColCt, p.MerklePaths[i], root, uint(queryColIdx)); err != nil || !ok {
 			return fmt.Errorf("failed to verify merkle path for column %d", queryColIdx)
 		}

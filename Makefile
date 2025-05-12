@@ -27,6 +27,7 @@ build_go: build_c
 
 # Target to explicitly build the Go application (same as build_go, common name)
 build: build_go
+	@echo "Run:\nexport LD_LIBRARY_PATH=$(PWD)/$(C_SUBDIR)"
 
 # Run the Go application
 # Ensures the application is built before running.

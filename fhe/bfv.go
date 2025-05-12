@@ -51,13 +51,20 @@ func NewClientBFV(plaintextField *core.PrimeField, paramsFHE bgv.Parameters, sk 
 
 func (b *ClientBFV) WithPoD(plaintextField *core.PrimeField, paramsPoD bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
 	b.paramsPoD = &paramsPoD
-	b.pod = NewBackendBFV(plaintextField, paramsPoD, nil, nil)
+	evaluator := bgv.NewEvaluator(paramsPoD, nil)
+	encoder := bgv.NewEncoder(paramsPoD)
+	encryptor := rlwe.NewEncryptor(paramsPoD, sk)
+	b.pod = &ServerBFV{plaintextField, paramsPoD, evaluator, encoder, encryptor}
 	b.podSk = sk
 	return b
 }
 
 func (b *ClientBFV) PoDBackend() *ServerBFV {
 	return b.pod
+}
+
+func (b *ClientBFV) PoDSK() *rlwe.SecretKey {
+	return b.podSk
 }
 
 func (b *ClientBFV) Field() *core.PrimeField {

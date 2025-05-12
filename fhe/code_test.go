@@ -1,7 +1,6 @@
 package fhe_test
 
 import (
-	"encoding/binary"
 	"fmt"
 	"testing"
 	"time"
@@ -10,47 +9,7 @@ import (
 	"github.com/nulltea/lumenos/fhe"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
-	"golang.org/x/crypto/chacha20"
 )
-
-// randomMatrix generates a matrix in both row-major and column-major
-func randomMatrix(rows, cols int, batchEncoder func([]uint64) *rlwe.Plaintext) ([][]*core.Element, []*rlwe.Plaintext, error) {
-	if rows <= 0 || cols <= 0 {
-		return nil, nil, fmt.Errorf("dimensions must be positive")
-	}
-	if rows&(rows-1) != 0 {
-		return nil, nil, fmt.Errorf("rows must be a power of 2")
-	}
-
-	seed := make([]byte, 32)
-	binary.LittleEndian.PutUint64(seed, 1)
-	cipher, err := chacha20.NewUnauthenticatedCipher(seed, make([]byte, 12))
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize ChaCha20: %v", err)
-	}
-
-	rowMatrix := make([][]*core.Element, rows)
-	for i := range rowMatrix {
-		rowMatrix[i] = make([]*core.Element, cols)
-		randomBytes := make([]byte, 8*cols)
-		cipher.XORKeyStream(randomBytes, randomBytes)
-		for j := 0; j < cols; j++ {
-			rowMatrix[i][j] = core.NewElement(binary.LittleEndian.Uint64(randomBytes[j*8:(j+1)*8]) % 255)
-		}
-	}
-
-	// transpose
-	colMatrix := make([]*rlwe.Plaintext, cols)
-	for j := range colMatrix {
-		column := make([]uint64, rows)
-		for i := 0; i < rows; i++ {
-			column[i] = rowMatrix[i][j].Uint64()
-		}
-		colMatrix[j] = batchEncoder(column)
-	}
-
-	return rowMatrix, colMatrix, nil
-}
 
 func TestEncode(t *testing.T) {
 	// Reset the multiplication counter at the start
@@ -87,7 +46,7 @@ func TestEncode(t *testing.T) {
 	backend := fhe.NewBackendBFV(&ptField, params, pk, nil)
 
 	start = time.Now()
-	matrix, batchedCols, err := randomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := encoder.Encode(u, plaintext); err != nil {
 			panic(err)

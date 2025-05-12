@@ -1,10 +1,12 @@
 package core
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/big"
 
 	"github.com/tuneinsight/lattigo/v6/ring"
+	"golang.org/x/crypto/chacha20"
 )
 
 func RingPolyToCoeffsCentered(ring *ring.Ring, poly ring.Poly, isMontgomery bool, isNTT bool) []int64 {
@@ -38,4 +40,43 @@ func RingPolyToStringsCentered(ring *ring.Ring, poly ring.Poly, isMontgomery boo
 		bigIntsString[i] = fmt.Sprintf("%d", v)
 	}
 	return bigIntsString
+}
+
+// RandomMatrix generates a matrix in both row-major and column-major
+func RandomMatrix[T any](rows, cols int, batchEncoder func([]uint64) *T) ([][]*Element, []*T, error) {
+	if rows <= 0 || cols <= 0 {
+		return nil, nil, fmt.Errorf("dimensions must be positive")
+	}
+	if rows&(rows-1) != 0 {
+		return nil, nil, fmt.Errorf("rows must be a power of 2")
+	}
+
+	seed := make([]byte, 32)
+	binary.LittleEndian.PutUint64(seed, 1)
+	cipher, err := chacha20.NewUnauthenticatedCipher(seed, make([]byte, 12))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize ChaCha20: %v", err)
+	}
+
+	rowMatrix := make([][]*Element, rows)
+	for i := range rowMatrix {
+		rowMatrix[i] = make([]*Element, cols)
+		randomBytes := make([]byte, 8*cols)
+		cipher.XORKeyStream(randomBytes, randomBytes)
+		for j := 0; j < cols; j++ {
+			rowMatrix[i][j] = NewElement(binary.LittleEndian.Uint64(randomBytes[j*8:(j+1)*8]) % 255)
+		}
+	}
+
+	// transpose
+	colMatrix := make([]*T, cols)
+	for j := range colMatrix {
+		column := make([]uint64, rows)
+		for i := 0; i < rows; i++ {
+			column[i] = rowMatrix[i][j].Uint64()
+		}
+		colMatrix[j] = batchEncoder(column)
+	}
+
+	return rowMatrix, colMatrix, nil
 }
