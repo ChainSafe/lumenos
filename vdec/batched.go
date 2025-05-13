@@ -23,7 +23,7 @@ func BatchedVdec(cts []*rlwe.Ciphertext, rows int, client *fhe.ClientBFV, transc
 		}
 	}
 
-	batchedCol, alphas, err := fhe.BatchColumns(matrix, rows, client.Field(), transcript)
+	batchedCol, alphas, err := fhe.BatchColumns(matrix, client.Field(), transcript)
 	if err != nil {
 		return nil, err
 	}

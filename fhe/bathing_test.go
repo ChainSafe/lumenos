@@ -13,26 +13,24 @@ import (
 
 func TestBatchCiphertexts(t *testing.T) {
 	programStart := time.Now()
-	start := time.Now()
+	rows := 2
+	cols := 2
 
-	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(cols, 13, Modulus)
+	params, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
+		LogN:             11,
+		LogQ:             []int{60, 60},
+		LogP:             []int{55, 55},
+		PlaintextModulus: 0x3ee0001,
+	})
 	if err != nil {
 		panic(err)
 	}
-
-	params, err := bgv.NewParametersFromLiteral(paramsLiteral)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Parameter generation took: %v\n", time.Since(start))
 
 	// Generate keys
-	start = time.Now()
 	kgen := rlwe.NewKeyGenerator(params)
 	sk, pk := kgen.GenKeyPairNew()
-	fmt.Printf("Key generation took: %v\n", time.Since(start))
 
-	ptField, err := core.NewPrimeField(params.PlaintextModulus(), cols*2)
+	ptField, err := core.NewPrimeField(params.PlaintextModulus(), 8*2)
 	if err != nil {
 		panic(err)
 	}
@@ -41,36 +39,31 @@ func TestBatchCiphertexts(t *testing.T) {
 	server := fhe.NewBackendBFV(&ptField, params, pk, nil)
 	client := fhe.NewClientBFV(&ptField, params, sk)
 
-	start = time.Now()
-	matrix, batchedCols, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, ciphertexts, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Ciphertext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := client.Encode(u, plaintext); err != nil {
 			panic(err)
 		}
-		return plaintext
+		ciphertext, err := client.EncryptNew(plaintext)
+		if err != nil {
+			panic(err)
+		}
+		return ciphertext
 	})
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Matrix generation and encoding took: %v\n", time.Since(start))
 
-	// Encrypt the batched columns
-	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
-	for i, plaintext := range batchedCols {
-		ciphertext, err := server.EncryptNew(plaintext)
-		if err != nil {
-			panic(err)
-		}
-		ciphertexts[i] = ciphertext
-	}
 	transcript := core.NewTranscript("batch_ciphertexts")
 
-	batchColCheck, alphas, err := fhe.BatchColumns(matrix, rows, &ptField, transcript)
+	fmt.Printf("matrix: %v\n", matrix)
+
+	batchColCheck, alphas, err := fhe.BatchColumns(matrix, &ptField, transcript)
 	if err != nil {
 		panic(err)
 	}
 
-	start = time.Now()
+	start := time.Now()
 	result, err := fhe.BatchCiphertexts(ciphertexts, alphas, server)
 	if err != nil {
 		panic(err)
@@ -89,8 +82,8 @@ func TestBatchCiphertexts(t *testing.T) {
 
 	// Assert that batchedCol and batchColCheck are equal
 	for i := range batchedCol {
-		if !batchedCol[i].Equal(batchColCheck[i]) {
-			t.Fatalf("Matrices differ at [%d]: expected %v, got %v", i, batchedCol[i], batchColCheck[i])
+		if !batchColCheck[i].Equal(batchedCol[i]) {
+			t.Fatalf("Matrices differ at [%d]: expected %v, got %v", i, batchColCheck[i], batchedCol[i])
 		}
 	}
 

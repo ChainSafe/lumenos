@@ -1,9 +1,7 @@
 package vdec_test
 
 import (
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
@@ -13,7 +11,7 @@ import (
 )
 
 const (
-	rows    = 1
+	rows    = 2
 	cols    = 2
 	Modulus = 0x3ee0001
 )
@@ -27,23 +25,19 @@ func TestVdecBatched(t *testing.T) {
 }
 
 func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV, *testing.T)) {
-	start := time.Now()
-	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(cols, 13, Modulus)
+	params, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
+		LogN:             11,
+		LogQ:             []int{60, 60},
+		LogP:             []int{55, 55},
+		PlaintextModulus: 0x3ee0001,
+	})
 	if err != nil {
 		panic(err)
 	}
-
-	params, err := bgv.NewParametersFromLiteral(paramsLiteral)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Parameter generation took: %v\n", time.Since(start))
 
 	// Generate keys
-	start = time.Now()
 	kgen := rlwe.NewKeyGenerator(params)
 	sk, pk := kgen.GenKeyPairNew()
-	fmt.Printf("Key generation took: %v\n", time.Since(start))
 
 	// Relinearization Key
 	// rlk := kgen.GenRelinearizationKeyNew(sk)

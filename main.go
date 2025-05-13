@@ -5,6 +5,8 @@ package main
 import (
 	"fmt"
 
+	"github.com/nulltea/lumenos/core"
+	"github.com/nulltea/lumenos/fhe"
 	"github.com/nulltea/lumenos/vdec"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
@@ -12,12 +14,14 @@ import (
 
 const (
 	Modulus = 0x3ee0001
+	Rows    = 2
+	Cols    = 2
 )
 
 func main() {
 	params, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
 		LogN:             11,
-		LogQ:             []int{56},
+		LogQ:             []int{60},
 		LogP:             []int{55, 55},
 		PlaintextModulus: 0x3ee0001,
 	})
@@ -26,35 +30,50 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Printf("bgv.Q: %v\n", params.Q())
+	fmt.Printf("bgv.P: %v\n", params.P())
+	fmt.Printf("bgv.PlaintextModulus: %v\n", params.PlaintextModulus())
+
 	// Generate keys
 	kgenFHE := rlwe.NewKeyGenerator(params)
 	sk, _ := kgenFHE.GenKeyPairNew()
 
-	server := struct {
-		*bgv.Encoder
-		*rlwe.Encryptor
-	}{
-		Encoder:   bgv.NewEncoder(params),
-		Encryptor: rlwe.NewEncryptor(params, sk),
-	}
-
-	m := []uint64{1}
-	plaintext := bgv.NewPlaintext(params, params.MaxLevel())
-	plaintext.IsBatched = false
-	if err := server.Encode(m, plaintext); err != nil {
-		panic(err)
-	}
-
-	ct, err := server.Encryptor.EncryptNew(plaintext)
+	ptField, err := core.NewPrimeField(params.PlaintextModulus(), 8)
 	if err != nil {
 		panic(err)
 	}
 
-	seed := []byte{2}
+	pk := rlwe.NewKeyGenerator(params).GenPublicKeyNew(sk)
 
-	fmt.Println("Generating proof...")
-	vdec.CallVdecProver(seed, params, sk, ct, m)
-	// defer vdec.FreeProof(&proof)
+	s := fhe.NewBackendBFV(&ptField, params, pk, nil)
+	c := fhe.NewClientBFV(&ptField, params, sk)
+	c.WithPoD(&ptField, params, sk)
+
+	_, cols, err := core.RandomMatrix(Cols, Rows, func(u []uint64) *rlwe.Ciphertext {
+		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
+		if err := s.Encode(u, plaintext); err != nil {
+			panic(err)
+		}
+
+		ct, err := s.Encryptor.EncryptNew(plaintext)
+		if err != nil {
+			panic(err)
+		}
+
+		return ct
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	println("Generating proof...")
+	transcript := core.NewTranscript("vdec")
+
+	_, err = vdec.BatchedVdec(cols, Rows, c, transcript)
+	if err != nil {
+		panic(err)
+	}
 	// fmt.Println("Proof generated.")
 
 	// res := vdec.CallVerifyVdecLnpTbox(&proof)

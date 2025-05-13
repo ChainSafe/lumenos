@@ -7,22 +7,41 @@ import (
 )
 
 func BatchCiphertexts(cts []*rlwe.Ciphertext, alphas [][]uint64, backend *ServerBFV) (*rlwe.Ciphertext, error) {
+	rows := len(alphas)
+	cols := len(cts)
 	params := *backend.GetParameters()
 	alphaPts := make([]*rlwe.Plaintext, len(cts))
-	for i := range cts {
+
+	alphasColMajor := make([][]uint64, cols)
+	for j := range alphasColMajor {
+		column := make([]uint64, rows)
+		for i := 0; i < rows; i++ {
+			column[i] = alphas[i][j]
+		}
+		alphasColMajor[j] = column
+	}
+
+	for i := range cols {
 
 		alphaPts[i] = bgv.NewPlaintext(params, params.MaxLevel())
-		if err := backend.Encode(alphas[i], alphaPts[i]); err != nil {
+		if err := backend.Encode(alphasColMajor[i], alphaPts[i]); err != nil {
 			return nil, err
 		}
 
 		// TODO: do inner product of column and alpha, how to discard garbage slots?
 	}
 
-	batchCt := backend.EncryptZeroNew(params.MaxLevel())
+	batchCt, err := backend.MulNew(cts[0], alphaPts[0])
+	if err != nil {
+		return nil, err
+	}
 
-	for i := range cts {
-		err := backend.MulThenAdd(cts[i], alphaPts[i], batchCt)
+	for i := 1; i < len(cts); i++ {
+		t, err := backend.MulNew(cts[i], alphaPts[i])
+		if err != nil {
+			return nil, err
+		}
+		err = backend.Add(batchCt, t, batchCt)
 		if err != nil {
 			return nil, err
 		}
@@ -31,15 +50,17 @@ func BatchCiphertexts(cts []*rlwe.Ciphertext, alphas [][]uint64, backend *Server
 	return batchCt, nil
 }
 
-func BatchColumns(matrix [][]*core.Element, rows int, field *core.PrimeField, transcript *core.Transcript) ([]*core.Element, [][]uint64, error) {
-	alphas := make([][]uint64, len(matrix))
+func BatchColumns(matrix [][]*core.Element, field *core.PrimeField, transcript *core.Transcript) ([]*core.Element, [][]uint64, error) {
+	rows := len(matrix)
+	cols := len(matrix[0])
+	alphas := make([][]uint64, rows)
 	for i := range alphas {
-		r := make([]uint64, rows)
-		transcript.SampleUint64("pod_alpha")
+		r := make([]uint64, cols)
+		transcript.SampleUints("pod_alpha", r)
 		alphas[i] = r
 	}
 
-	batchCol := make([]*core.Element, len(matrix))
+	batchCol := make([]*core.Element, rows)
 	for i := range batchCol {
 		batchCol[i] = core.Zero()
 	}
