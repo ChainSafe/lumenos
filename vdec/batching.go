@@ -1,4 +1,4 @@
-package fhe
+package vdec
 
 import (
 	"github.com/nulltea/lumenos/core"
@@ -6,24 +6,14 @@ import (
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
-func BatchCiphertexts(cts []*rlwe.Ciphertext, alphas [][]uint64, backend *ServerBFV) (*rlwe.Ciphertext, error) {
-	rows := len(alphas)
+func BatchCiphertexts(cts []*rlwe.Ciphertext, alphasColMajor [][]uint64, backend *bgv.Evaluator) (*rlwe.Ciphertext, error) {
 	cols := len(cts)
 	params := *backend.GetParameters()
 	alphaPts := make([]*rlwe.Plaintext, len(cts))
 
-	alphasColMajor := make([][]uint64, cols)
-	for j := range alphasColMajor {
-		column := make([]uint64, rows)
-		for i := 0; i < rows; i++ {
-			column[i] = alphas[i][j]
-		}
-		alphasColMajor[j] = column
-	}
-
 	for i := range cols {
-
 		alphaPts[i] = bgv.NewPlaintext(params, params.MaxLevel())
+		alphaPts[i].MetaData = cts[0].MetaData
 		if err := backend.Encode(alphasColMajor[i], alphaPts[i]); err != nil {
 			return nil, err
 		}
@@ -37,7 +27,7 @@ func BatchCiphertexts(cts []*rlwe.Ciphertext, alphas [][]uint64, backend *Server
 	}
 
 	for i := 1; i < len(cts); i++ {
-		t, err := backend.MulNew(cts[i], alphaPts[i])
+		t, err := backend.MulScaleInvariantNew(cts[i], alphaPts[i])
 		if err != nil {
 			return nil, err
 		}
@@ -50,25 +40,25 @@ func BatchCiphertexts(cts []*rlwe.Ciphertext, alphas [][]uint64, backend *Server
 	return batchCt, nil
 }
 
-func BatchColumns(matrix [][]*core.Element, field *core.PrimeField, transcript *core.Transcript) ([]*core.Element, [][]uint64, error) {
-	rows := len(matrix)
-	cols := len(matrix[0])
-	alphas := make([][]uint64, rows)
-	for i := range alphas {
-		r := make([]uint64, cols)
+func BatchColumns(matrixColMajor [][]*core.Element, field *core.PrimeField, transcript *core.Transcript) ([]*core.Element, [][]uint64, error) {
+	rows := len(matrixColMajor[0])
+	cols := len(matrixColMajor)
+	alphasColMajor := make([][]uint64, cols)
+	for i := range alphasColMajor {
+		r := make([]uint64, rows)
 		transcript.SampleUints("pod_alpha", r)
-		alphas[i] = r
+		alphasColMajor[i] = r
 	}
 
 	batchCol := make([]*core.Element, rows)
 	for i := range batchCol {
 		batchCol[i] = core.Zero()
 	}
-	for i := range matrix {
-		for j := range matrix[i] {
-			batchCol[i] = field.Add(batchCol[i], field.Mul(matrix[i][j], core.NewElement(alphas[i][j])))
+	for j := range matrixColMajor {
+		for i := range matrixColMajor[j] {
+			batchCol[i] = field.Add(batchCol[i], field.Mul(matrixColMajor[j][i], core.NewElement(alphasColMajor[j][i])))
 		}
 	}
 
-	return batchCol, alphas, nil
+	return batchCol, alphasColMajor, nil
 }

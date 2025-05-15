@@ -7,20 +7,19 @@ import (
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
-	"github.com/nulltea/lumenos/vdec"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
 const (
 	Rows = 1
-	Cols = 1
+	Cols = 10
 )
 
 func main() {
 	params, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
 		LogN: 11,
-		LogQ: []int{60},
+		LogQ: []int{60, 55},
 		// LogP:             []int{55, 55},
 		PlaintextModulus: 0x3ee0001,
 	})
@@ -44,33 +43,9 @@ func main() {
 
 	s := fhe.NewBackendBFV(&ptField, params, pk, nil)
 	c := fhe.NewClientBFV(&ptField, params, sk)
-	c.WithPoD(&ptField, params, sk)
 
-	_, cols, err := core.RandomMatrix(Cols, Rows, func(u []uint64) *rlwe.Ciphertext {
-		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
-		if err := s.Encode(u, plaintext); err != nil {
-			panic(err)
-		}
-
-		ct, err := s.Encryptor.EncryptNew(plaintext)
-		if err != nil {
-			panic(err)
-		}
-
-		return ct
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
-	println("Generating proof...")
-	transcript := core.NewTranscript("vdec")
-
-	_, err = vdec.BatchedVdec(cols, Rows, c, transcript)
-	if err != nil {
-		panic(err)
-	}
+	_ = s
+	_ = c
 }
 
 func test_ring_switch() {

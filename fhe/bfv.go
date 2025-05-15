@@ -16,17 +16,32 @@ type ServerBFV struct {
 	*bgv.Evaluator
 	*bgv.Encoder
 	*rlwe.Encryptor
+	mulCounter int
 }
 
 func NewBackendBFV(plaintextField *core.PrimeField, params bgv.Parameters, pk *rlwe.PublicKey, evk rlwe.EvaluationKeySet) *ServerBFV {
-	evaluator := bgv.NewEvaluator(params, evk) // TODO: use BFV scaleInvariant=tre
+	evaluator := bgv.NewEvaluator(params, evk) // TODO: use BFV scaleInvariant=true and use MulScaleInvariant instead of MulNew
 	encoder := bgv.NewEncoder(params)
 	encryptor := rlwe.NewEncryptor(params, pk)
-	return &ServerBFV{plaintextField, params, evaluator, encoder, encryptor}
+	return &ServerBFV{plaintextField, params, evaluator, encoder, encryptor, 0}
 }
 
 func (b *ServerBFV) Field() *core.PrimeField {
 	return b.ptField
+}
+
+func (b *ServerBFV) Mul(op0 *rlwe.Ciphertext, op1 rlwe.Operand, opOut *rlwe.Ciphertext) (err error) {
+	b.mulCounter++
+	return b.Evaluator.Mul(op0, op1, opOut)
+}
+
+func (b *ServerBFV) MulNew(op0 *rlwe.Ciphertext, op1 rlwe.Operand) (opOut *rlwe.Ciphertext, err error) {
+	b.mulCounter++
+	return b.Evaluator.MulNew(op0, op1)
+}
+
+func (b *ServerBFV) MulCounter() int {
+	return b.mulCounter
 }
 
 type ClientBFV struct {
@@ -36,36 +51,42 @@ type ClientBFV struct {
 	*rlwe.Encryptor
 	*rlwe.Decryptor
 	sk *rlwe.SecretKey
+	*bgv.Evaluator
 
-	paramsPoD *bgv.Parameters
-	pod       *ServerBFV
-	podSk     *rlwe.SecretKey
+	// paramsPoD *bgv.Parameters
+	// pod       *ServerBFV
+	// podSk     *rlwe.SecretKey
 }
 
 func NewClientBFV(plaintextField *core.PrimeField, paramsFHE bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
 	encoder := bgv.NewEncoder(paramsFHE)
 	encryptor := rlwe.NewEncryptor(paramsFHE, sk)
 	decryptor := rlwe.NewDecryptor(paramsFHE, sk)
-	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk, nil, nil, nil}
+	evaluator := bgv.NewEvaluator(paramsFHE, nil)
+	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk, evaluator}
 }
 
-func (b *ClientBFV) WithPoD(plaintextField *core.PrimeField, paramsPoD bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
-	b.paramsPoD = &paramsPoD
-	evaluator := bgv.NewEvaluator(paramsPoD, nil)
-	encoder := bgv.NewEncoder(paramsPoD)
-	encryptor := rlwe.NewEncryptor(paramsPoD, sk)
-	b.pod = &ServerBFV{plaintextField, paramsPoD, evaluator, encoder, encryptor}
-	b.podSk = sk
-	return b
+func (b *ClientBFV) SecretKey() *rlwe.SecretKey {
+	return b.sk
 }
 
-func (b *ClientBFV) PoDBackend() *ServerBFV {
-	return b.pod
-}
+// func (b *ClientBFV) WithPoD(plaintextField *core.PrimeField, paramsPoD bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
+// 	b.paramsPoD = &paramsPoD
+// 	evaluator := bgv.NewEvaluator(paramsPoD, nil)
+// 	encoder := bgv.NewEncoder(paramsPoD)
+// 	encryptor := rlwe.NewEncryptor(paramsPoD, sk)
+// 	b.pod = &ServerBFV{plaintextField, paramsPoD, evaluator, encoder, encryptor}
+// 	b.podSk = sk
+// 	return b
+// }
 
-func (b *ClientBFV) PoDSK() *rlwe.SecretKey {
-	return b.podSk
-}
+// func (b *ClientBFV) PoDBackend() *ServerBFV {
+// 	return b.pod
+// }
+
+// func (b *ClientBFV) PoDSK() *rlwe.SecretKey {
+// 	return b.podSk
+// }
 
 func (b *ClientBFV) Field() *core.PrimeField {
 	return b.ptField

@@ -5,6 +5,21 @@ import (
 	"math/bits"
 )
 
+func InnerProduct(v []*Element, r []*Element, field *PrimeField) *Element {
+	if len(v) != len(r) {
+		panic("vector lengths do not match")
+	}
+
+	sum := Zero()
+
+	for i := 0; i < len(v); i++ {
+		product := field.Mul(v[i], r[i])
+		sum = field.Add(sum, product)
+	}
+
+	return sum
+}
+
 // SqrtFactor finds the integer square root if n is a power of 2.
 // Returns sqrt(n) and panics if n is a power of 2, otherwise 0 and error.
 func SqrtFactor(n int) int {

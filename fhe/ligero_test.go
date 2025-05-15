@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	rows    = 16
-	cols    = 16
+	rows    = 2048
+	cols    = 1024
 	Modulus = 0x3ee0001
 	rhoInv  = 2
 	// Modulus = 288230376150630401
@@ -21,17 +21,18 @@ const (
 )
 
 func TestLigeroE2E(t *testing.T) {
-	run(t, testLigeroE2E)
+	run(t, testLigeroE2E, false)
+}
+
+func TestLigeroPPD(t *testing.T) {
+	run(t, testLigeroE2E, true)
 }
 
 func TestLigeroRLC(t *testing.T) {
-	run(t, testLigeroRLC)
+	run(t, testLigeroRLC, false)
 }
 
-func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV, *testing.T)) {
-	// Reset the multiplication counter at the start
-	fhe.MultiplicationsCounter = 0
-
+func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV, *testing.T, bool), vdec bool) {
 	start := time.Now()
 
 	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(cols, 13, Modulus)
@@ -68,12 +69,12 @@ func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV,
 	server := fhe.NewBackendBFV(&ptField, params, pk, evk)
 	client := fhe.NewClientBFV(&ptField, params, sk)
 
-	test(params, server, client, t)
+	test(params, server, client, t, vdec)
 }
 
-func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T) {
+func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T, vdec bool) {
 	start := time.Now()
-	matrix, batchedCols, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)
@@ -114,7 +115,7 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 
 	start = time.Now()
 	transcript := core.NewTranscript("test")
-	proof, err := comm.Prove(z, s, transcript)
+	encryptedProof, err := comm.Prove(z, s, transcript)
 	if err != nil {
 		panic(err)
 	}
@@ -122,19 +123,25 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 
 	verifierTranscript := core.NewTranscript("test")
 
-	poly := core.NewDensePoly(flatten(matrix))
+	poly := core.NewDensePolyFromMatrix(matrix)
 	value := poly.Evaluate(s.Field(), z)
+
+	proof, err := encryptedProof.Decrypt(c, vdec)
+	if err != nil {
+		panic(err)
+	}
+
 	err = proof.Verify(z, value, c, verifierTranscript)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("Number of multiplications: %d\n", fhe.MultiplicationsCounter)
+	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
 }
 
-func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T) {
+func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T, _ bool) {
 	start := time.Now()
-	matrix, batchedCols, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)
@@ -213,7 +220,7 @@ func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	}
 
 	fmt.Println("Results match")
-	fmt.Printf("Number of multiplications: %d\n", fhe.MultiplicationsCounter)
+	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
 }
 
 func ligeroProveReference(matrix [][]*core.Element, field *core.PrimeField, transcript *core.Transcript) ([]*core.Element, error) {
@@ -235,19 +242,4 @@ func ligeroProveReference(matrix [][]*core.Element, field *core.PrimeField, tran
 	}
 
 	return rowProducts, nil
-}
-
-func flatten(slices [][]*core.Element) []*core.Element {
-	totalLen := 0
-	for _, slice := range slices {
-		totalLen += len(slice)
-	}
-
-	result := make([]*core.Element, 0, totalLen)
-
-	for _, slice := range slices {
-		result = append(result, slice...)
-	}
-
-	return result
 }

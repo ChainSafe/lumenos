@@ -3,6 +3,7 @@ package vdec_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
@@ -55,8 +56,6 @@ func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV,
 	server := fhe.NewBackendBFV(&ptField, params, pk, nil)
 	client := fhe.NewClientBFV(&ptField, params, sk)
 
-	client.WithPoD(&ptField, params, sk)
-
 	test(params, server, client, t)
 }
 
@@ -85,7 +84,7 @@ func testVdecSimple(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.Cl
 	if err := client.Decode(pt, decrypted); err != nil {
 		panic(err)
 	}
-	vdec.CallVdecProver(seed, params, client.PoDSK(), ct, m)
+	vdec.CallVdecProver(seed, params, client.SecretKey(), ct, m)
 
 	for i := range decrypted {
 		if decrypted[i] != m[i] {
@@ -94,62 +93,93 @@ func testVdecSimple(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.Cl
 	}
 }
 
-const (
-	rows = 64
-	cols = 1
-)
-
 func testVdecBatched(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.ClientBFV, t *testing.T) {
-	matrix, cols, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Ciphertext {
-		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
-		if err := client.Encode(u, plaintext); err != nil {
-			panic(err)
-		}
+	cases := []struct {
+		rows int
+		cols int
+	}{
+		{2048, 2048},
+		// {1024, 2048}, // TODO: running two tests consecutively takes longer than expected
 
-		ct, err := server.Encryptor.EncryptNew(plaintext)
+	}
+
+	for _, c := range cases {
+		rows := c.rows
+		cols := c.cols
+		matrixColMajor, ciphertexts, err := core.RandomMatrixColMajor(rows, cols, func(u []uint64) *rlwe.Ciphertext {
+			plaintext := bgv.NewPlaintext(params, params.MaxLevel())
+			if err := client.Encode(u, plaintext); err != nil {
+				panic(err)
+			}
+
+			ct, err := server.Encryptor.EncryptNew(plaintext)
+			if err != nil {
+				panic(err)
+			}
+
+			return ct
+		})
+
 		if err != nil {
 			panic(err)
 		}
 
-		return ct
-	})
+		colsCheck := make([]*rlwe.Ciphertext, len(ciphertexts))
+		for i := range ciphertexts {
+			colsCheck[i] = ciphertexts[i].CopyNew()
+		}
 
-	if err != nil {
-		panic(err)
-	}
+		instance := make([]*vdec.ColumnInstance, len(ciphertexts))
+		for j := range ciphertexts {
+			instance[j] = &vdec.ColumnInstance{
+				Values: matrixColMajor[j],
+				Ct:     ciphertexts[j],
+			}
+		}
 
-	transcript := core.NewTranscript("vdec")
+		transcript := core.NewTranscript("vdec")
+		err = vdec.ProveBfvDecBatched(instance, client.SecretKey(), server.Evaluator, client.Field(), transcript)
+		if err != nil {
+			panic(err)
+		}
 
-	vdec.BatchedVdec(cols, rows, client, transcript)
+		// Sanity check
 
-	// Sanity check
+		batchColCheck, alphas, err := vdec.BatchColumns(matrixColMajor, client.Field(), transcript)
+		if err != nil {
+			panic(err)
+		}
+		start := time.Now()
+		result, err := vdec.BatchCiphertexts(ciphertexts, alphas, server.Evaluator)
+		if err != nil {
+			panic(err)
+		}
+		elapsed := time.Since(start)
+		fmt.Printf("BatchCiphertexts took %s\n", elapsed)
 
-	transcript = core.NewTranscript("vdec")
+		for result.LevelQ() > 0 {
+			server.Rescale(result, result)
+			fmt.Printf("rescaled batchCt to -> level Q(%d)\n", result.LevelQ())
+		}
 
-	batchColCheck, alphas, err := fhe.BatchColumns(matrix, client.Field(), transcript)
-	if err != nil {
-		panic(err)
-	}
+		start = time.Now()
+		batchedCol := make([]*core.Element, rows)
+		plaintext := client.DecryptNew(result)
+		column := make([]uint64, rows)
+		if err := server.Decode(plaintext, column); err != nil {
+			panic(err)
+		}
+		for i := range column {
+			batchedCol[i] = core.NewElement(column[i])
+		}
+		elapsed = time.Since(start)
+		fmt.Printf("Decrypt and decode took %s\n", elapsed)
 
-	result, err := fhe.BatchCiphertexts(cols, alphas, server)
-	if err != nil {
-		panic(err)
-	}
-
-	batchedCol := make([]*core.Element, rows)
-	plaintext := client.DecryptNew(result)
-	column := make([]uint64, rows)
-	if err := server.Decode(plaintext, column); err != nil {
-		panic(err)
-	}
-	for i := range column {
-		batchedCol[i] = core.NewElement(column[i])
-	}
-
-	// Assert that batchedCol and batchColCheck are equal
-	for i := range batchedCol {
-		if !batchColCheck[i].Equal(batchedCol[i]) {
-			t.Fatalf("Matrices differ at [%d]: expected %v, got %v", i, batchColCheck[i], batchedCol[i])
+		// Assert that batchedCol and batchColCheck are equal
+		for i := range batchedCol {
+			if !batchColCheck[i].Equal(batchedCol[i]) {
+				t.Fatalf("Matrices differ at [%d]: expected %v, got %v", i, batchColCheck[i], batchedCol[i])
+			}
 		}
 	}
 }

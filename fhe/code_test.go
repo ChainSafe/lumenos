@@ -12,9 +12,6 @@ import (
 )
 
 func TestEncode(t *testing.T) {
-	// Reset the multiplication counter at the start
-	fhe.MultiplicationsCounter = 0
-
 	programStart := time.Now()
 	start := time.Now()
 
@@ -46,7 +43,7 @@ func TestEncode(t *testing.T) {
 	backend := fhe.NewBackendBFV(&ptField, params, pk, nil)
 
 	start = time.Now()
-	matrix, batchedCols, err := core.RandomMatrix(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := encoder.Encode(u, plaintext); err != nil {
 			panic(err)
@@ -122,5 +119,5 @@ func TestEncode(t *testing.T) {
 	fmt.Printf("Total execution time: %v\n", time.Since(programStart))
 
 	// Print the number of multiplications after NTT
-	fmt.Printf("Number of multiplications in NTT: %d\n", fhe.MultiplicationsCounter)
+	fmt.Printf("Number of multiplications in NTT: %d\n", backend.MulCounter())
 }

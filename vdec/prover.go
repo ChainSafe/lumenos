@@ -28,6 +28,7 @@ import "C"
 import (
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"strconv"
 	"strings"
@@ -43,12 +44,65 @@ import (
 const DEGREE = 2048
 const CT_COUNT = 1
 
+// ColumnInstance is a pair of a batched ciphertext and associated decrypted column vector.
+type ColumnInstance struct {
+	Ct     *rlwe.Ciphertext
+	Values []*core.Element
+}
+
+func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, backend *bgv.Evaluator, field *core.PrimeField, transcript *core.Transcript) error {
+	cols := len(instance)
+	matrixColMajor := make([][]*core.Element, cols)
+	for j := range matrixColMajor {
+		matrixColMajor[j] = instance[j].Values
+	}
+
+	start := time.Now()
+	batchedCol, alphas, err := BatchColumns(matrixColMajor, field, transcript)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Batching decrypted columns took %s\n", time.Since(start))
+
+	m := make([]uint64, len(batchedCol))
+	for i := range batchedCol {
+		m[i] = batchedCol[i].Uint64()
+	}
+
+	cts := make([]*rlwe.Ciphertext, len(instance))
+	for i := range cts {
+		cts[i] = instance[i].Ct
+	}
+
+	start = time.Now()
+	batchCt, err := BatchCiphertexts(cts, alphas, backend)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Batching ciphertexts evaluation took %s\n", time.Since(start))
+	seed := []byte{2} // TODO: make this random?
+
+	// TODO: ring and modulus switch
+	levelWas := batchCt.LevelQ()
+	for batchCt.LevelQ() > 0 {
+		backend.Rescale(batchCt, batchCt)
+	}
+	if batchCt.LevelQ() < levelWas {
+		fmt.Printf("rescaled batch ciphertext level Q (%d) -> %d\n", levelWas, batchCt.LevelQ())
+	}
+
+	CallVdecProver(seed, *backend.GetParameters(), witness, batchCt, m)
+
+	return nil
+}
+
 // CallVdecProver calls the C implementation of the vdec prover.
 func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice) {
 	C.lazer_init()
-	fmt.Println("Lazer initialized from Go.")
+	fmt.Println("Lazer.c initialized.")
 
-	fmt.Printf("sk.LevelQ(): %d\n", sk.LevelQ())
+	start := time.Now()
+
 	// Prepare inputs
 	skRingQ := params.RingQ().AtLevel(sk.LevelQ())
 	ringQ := params.RingQ().AtLevel(ct.LevelQ())
@@ -90,12 +144,11 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 	if rq == nil {
 		log.Fatal("Failed to get Rq from params1")
 	}
-	fmt.Printf("Obtained Rq: %p\n", rq)
 	proofDegree := uint32(C.polyring_get_deg(rq))
 	if proofDegree == 0 {
 		log.Fatal("Failed to get proof degree (Rq->d)")
 	}
-	fmt.Printf("Proof degree (Rq->d) from C: %d\n", proofDegree)
+	fmt.Printf("Proof degree (Rq->d): %d\n", proofDegree)
 
 	var seedChar [32]C.uint8_t
 	for i := range seed {
@@ -111,14 +164,11 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 
 	numChunkPolys := DEGREE / int(proofDegree)
 
-	fmt.Printf("Creating sk_vec with %d polynomials...\n", numChunkPolys)
 	skVec := C.CreatePolyvec(rq, C.uint(numChunkPolys))
 	if skVec == nil {
 		log.Fatal("Failed to create sk polyvec")
 	}
 	defer C.FreePolyvec(skVec)
-
-	fmt.Printf("proofDegree: %d\n", proofDegree)
 
 	for i := 0; i < numChunkPolys; i++ {
 		offset := i * int(proofDegree)
@@ -182,12 +232,11 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 			C.SetPolyvecPolyCoeffs(mDeltaVec, C.uint(polyIndexInCVec), (*C.int64_t)(unsafe.Pointer(&polyCoeffsSlice[0])), C.uint(proofDegree))
 		}
 	}
-
-	GenerateHeaderFile("vdec_ct.h", sk, ct, m, params)
+	fmt.Printf("Witness generation took %s\n", time.Since(start))
 
 	// Prove
-	fmt.Println("Calling VdecLnpTbox...")
-	start := time.Now()
+	fmt.Println("Calling vdec_lnp_tbox...")
+	start = time.Now()
 	C.ProveVdecLnpTbox(
 		&seedChar[0],
 		skVec,
@@ -198,8 +247,8 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 		mDeltaVec,
 		fheDegree,
 	)
-	fmt.Println("VdecLnpTbox call completed.")
-	fmt.Printf("Time taken: %v\n", time.Since(start))
+	fmt.Println("vdec_lnp_tbox call completed.")
+	fmt.Printf("VDec prover time: %v\n", time.Since(start))
 	// defer C.FreeVdecProof(&proofResult) // Free the proof because passing reference of proof between methods doesn't work right now
 
 	C.lazer_fini()
@@ -280,8 +329,10 @@ func GenerateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext
 
 	// ptPoly := ringQ.NewPoly()
 	// fmt.Printf("modQ: %v, modT: %v\n", modQ, modT)
-	// delta := new(big.Int).ModInverse(modT, modQ).Uint64()
+	delta := new(big.Int).ModInverse(modT, modQ).Uint64()
 	// encodeRingQMulDelta(m, params, delta, ptPoly, ct.MetaData.IsBatched)
+
+	fmt.Printf("modQ: %v, delta: %v\n", modQ, delta)
 
 	pt := bgv.NewPlaintext(params, params.MaxLevel())
 	pt.MetaData = ct.MetaData
