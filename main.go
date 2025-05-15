@@ -13,16 +13,15 @@ import (
 )
 
 const (
-	Modulus = 0x3ee0001
-	Rows    = 2
-	Cols    = 2
+	Rows = 1
+	Cols = 1
 )
 
 func main() {
 	params, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
-		LogN:             11,
-		LogQ:             []int{60},
-		LogP:             []int{55, 55},
+		LogN: 11,
+		LogQ: []int{60},
+		// LogP:             []int{55, 55},
 		PlaintextModulus: 0x3ee0001,
 	})
 
@@ -36,14 +35,12 @@ func main() {
 
 	// Generate keys
 	kgenFHE := rlwe.NewKeyGenerator(params)
-	sk, _ := kgenFHE.GenKeyPairNew()
+	sk, pk := kgenFHE.GenKeyPairNew()
 
 	ptField, err := core.NewPrimeField(params.PlaintextModulus(), 8)
 	if err != nil {
 		panic(err)
 	}
-
-	pk := rlwe.NewKeyGenerator(params).GenPublicKeyNew(sk)
 
 	s := fhe.NewBackendBFV(&ptField, params, pk, nil)
 	c := fhe.NewClientBFV(&ptField, params, sk)
@@ -74,10 +71,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// fmt.Println("Proof generated.")
-
-	// res := vdec.CallVerifyVdecLnpTbox(&proof)
-	// fmt.Printf("res: %v\n", res)
 }
 
 func test_ring_switch() {

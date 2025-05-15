@@ -28,7 +28,6 @@ import "C"
 import (
 	"fmt"
 	"log"
-	"math/big"
 	"os"
 	"strconv"
 	"strings"
@@ -42,49 +41,50 @@ import (
 )
 
 const DEGREE = 2048
-const PROOF_DEGREE = 256
 const CT_COUNT = 1
 
 // CallVdecProver calls the C implementation of the vdec prover.
-// WARNING: The returned C.VdecProof struct currently contains pointers to memory
-// that is freed within the C function. Accessing these pointers from Go is unsafe
-// and will likely lead to crashes. A proper memory management strategy (e.g.,
-// allocating proof components on the heap in C and providing a C function to free them)
-// is required before using the returned proof.
 func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice) {
 	C.lazer_init()
 	fmt.Println("Lazer initialized from Go.")
 
+	fmt.Printf("sk.LevelQ(): %d\n", sk.LevelQ())
 	// Prepare inputs
-	ringQ := params.RingQ().AtLevel(sk.LevelQ())
-	modQ := ringQ.ModulusAtLevel[sk.LevelQ()]
-	modT := params.RingT().Modulus()
+	skRingQ := params.RingQ().AtLevel(sk.LevelQ())
+	ringQ := params.RingQ().AtLevel(ct.LevelQ())
 
-	skCoeffs := core.RingPolyToCoeffsCentered(ringQ, *sk.Value.Q.CopyNew(), true, true)
+	skCoeffs := core.RingPolyToCoeffsCentered(skRingQ, *sk.Value.Q.CopyNew(), true, true)
 	ct0Coeffs := core.RingPolyToCoeffsCentered(ringQ, *ct.Value[0].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 	ct1Coeffs := core.RingPolyToCoeffsCentered(ringQ, *ct.Value[1].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 
-	pt := bgv.NewPlaintext(params, params.MaxLevel())
-	pt.IsBatched = false
-	ptPoly := ringQ.NewPoly()
-	delta := params.DefaultScale()
+	// ptPoly := ringQ.NewPoly()
+	// delta := params.DefaultScale()
 	// delta.Value = *new(big.Float).SetMode(big.ToNearestEven).Quo(
 	// 	new(big.Float).SetInt(modQ),
 	// 	new(big.Float).SetInt(modT),
 	// )
 
 	// TODO: how to round to nearest even like in python `delta = round(mod/mod_t)`
-	delta.Value = *new(big.Float).Add(
-		new(big.Float).Quo(
-			new(big.Float).SetInt(modQ),
-			new(big.Float).SetInt(modT),
-		),
-		new(big.Float).SetFloat64(0.5),
-	)
+	// modQ := ringQ.ModulusAtLevel[ct.LevelQ()]
+	// modT := params.RingT().Modulus()
+	// ptPoly := ringQ.NewPoly()
+	// delta := params.DefaultScale()
+	// delta.Value = *new(big.Float).Add(
+	// 	new(big.Float).Quo(
+	// 		new(big.Float).SetInt(modQ),
+	// 		new(big.Float).SetInt(modT),
+	// 	),
+	// 	new(big.Float).SetFloat64(0.5),
+	// )
+	// // delta := new(big.Int).ModInverse(modT, modQ).Uint64()
+	// encodeRingQMulDelta(m, params, delta.Uint64(), ptPoly, ct.MetaData.IsBatched)
 
-	encodeRingQMulDelta(m, params, delta, ptPoly)
+	pt := bgv.NewPlaintext(params, params.MaxLevel())
+	pt.MetaData = ct.MetaData
+	bgv.NewEncoder(params).Encode(m, pt)
+	ptPoly := pt.Value
 
-	mDelta := core.RingPolyToCoeffsCentered(ringQ, ptPoly, false, false)
+	mScaled := core.RingPolyToCoeffsCentered(ringQ, ptPoly, false, false)
 
 	rq := C.GetRqFromVdecParams1()
 	if rq == nil {
@@ -117,6 +117,8 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 		log.Fatal("Failed to create sk polyvec")
 	}
 	defer C.FreePolyvec(skVec)
+
+	fmt.Printf("proofDegree: %d\n", proofDegree)
 
 	for i := 0; i < numChunkPolys; i++ {
 		offset := i * int(proofDegree)
@@ -173,10 +175,10 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 		for i := 0; i < numChunkPolys; i++ {
 			polyIndexInCVec := k*numChunkPolys + i
 			offset := i * int(proofDegree)
-			if offset+int(proofDegree) > len(mDelta) {
+			if offset+int(proofDegree) > len(mScaled) {
 				log.Fatalf("Error populating mDeltaVec: ptCoeffs is too short for component %d, polynomial %d.", k, i)
 			}
-			polyCoeffsSlice := mDelta[offset : offset+int(proofDegree)]
+			polyCoeffsSlice := mScaled[offset : offset+int(proofDegree)]
 			C.SetPolyvecPolyCoeffs(mDeltaVec, C.uint(polyIndexInCVec), (*C.int64_t)(unsafe.Pointer(&polyCoeffsSlice[0])), C.uint(proofDegree))
 		}
 	}
@@ -206,87 +208,85 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 	// return proofResult
 }
 
-func encodeRingQMulDelta(values bgv.IntegerSlice, params bgv.Parameters, delta rlwe.Scale, pQ ring.Poly) (err error) {
+func encodeRingQMulDelta(values bgv.IntegerSlice, params bgv.Parameters, delta uint64, pQ ring.Poly, isBatched bool) (err error) {
 	ecd := bgv.NewEncoder(params)
+	ringQ := params.RingQ().AtLevel(pQ.Level())
 	ringT := params.RingT()
-	ringQ := params.RingQ().AtLevel(params.MaxLevel())
-	N := ringT.N()
-	T := ringT.SubRings[0].Modulus
-	BRC := ringT.SubRings[0].BRedConstant
 
 	bufT := ringT.NewPoly()
-	ptT := bufT.Coeffs[0]
 
-	var valLen int
-	switch values := values.(type) {
-	case []uint64:
+	if isBatched {
+		ecd.EncodeRingT(values, params.DefaultScale(), bufT)
+	} else {
+		fmt.Printf("pQ ringQ.Level(): %d\n", ringQ.Level())
+		N := ringT.N()
+		T := ringT.SubRings[0].Modulus
+		BRC := ringT.SubRings[0].BRedConstant
 
-		if len(values) > N {
-			return fmt.Errorf("cannot Encode (TimeDomain): len(values)=%d > N=%d", len(values), N)
+		ptT := bufT.Coeffs[0]
+
+		var valLen int
+		switch values := values.(type) {
+		case []uint64:
+
+			if len(values) > N {
+				return fmt.Errorf("cannot Encode (TimeDomain): len(values)=%d > N=%d", len(values), N)
+			}
+
+			copy(ptT, values)
+			valLen = len(values)
+		case []int64:
+
+			if len(values) > N {
+				return fmt.Errorf("cannot Encode (TimeDomain: len(values)=%d > N=%d", len(values), N)
+			}
+
+			var sign, abs uint64
+			for i, c := range values {
+				sign = uint64(c) >> 63
+				abs = ring.BRedAdd(uint64(c*((int64(sign)^1)-int64(sign))), T, BRC)
+				ptT[i] = sign*(T-abs) | (sign^1)*abs
+			}
+
+			valLen = len(values)
 		}
 
-		copy(ptT, values)
-		valLen = len(values)
-	case []int64:
-
-		if len(values) > N {
-			return fmt.Errorf("cannot Encode (TimeDomain: len(values)=%d > N=%d", len(values), N)
+		for i := valLen; i < N; i++ {
+			ptT[i] = 0
 		}
 
-		var sign, abs uint64
-		for i, c := range values {
-			sign = uint64(c) >> 63
-			abs = ring.BRedAdd(uint64(c*((int64(sign)^1)-int64(sign))), T, BRC)
-			ptT[i] = sign*(T-abs) | (sign^1)*abs
-		}
-
-		valLen = len(values)
+		fmt.Printf("delta: %v\n", delta)
 	}
 
-	for i := valLen; i < N; i++ {
-		ptT[i] = 0
-	}
-
-	fmt.Printf("delta: %v\n", delta.Uint64())
-
-	ecd.RingT2Q(params.MaxLevel(), false, bufT, pQ)
-	ringQ.MulScalar(pQ, delta.Uint64(), pQ)
+	ecd.RingT2Q(pQ.Level(), false, bufT, pQ)
+	ringQ.MulScalar(pQ, delta, pQ)
 
 	return nil
 }
 
 func GenerateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice, params bgv.Parameters) error {
-	ringQ := params.RingQ().AtLevel(sk.LevelQ())
-	modQ := ringQ.ModulusAtLevel[sk.LevelQ()]
+	skRingQ := params.RingQ().AtLevel(sk.LevelQ())
+	ringQ := params.RingQ().AtLevel(ct.LevelQ())
+	modQ := ringQ.ModulusAtLevel[ct.LevelQ()]
 	modT := params.RingT().Modulus()
 
 	// Convert secret key to string
-	skCoeffsString := core.RingPolyToStringsCentered(ringQ, *sk.Value.Q.CopyNew(), true, true)
+	skCoeffsString := core.RingPolyToStringsCentered(skRingQ, *sk.Value.Q.CopyNew(), true, true)
 
 	// Convert ciphertext components to strings
 	// fmt.Printf("ct.MetaData: %v, %v\n", ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 	ct0String := core.RingPolyToStringsCentered(ringQ, *ct.Value[0].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 	ct1String := core.RingPolyToStringsCentered(ringQ, *ct.Value[1].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 
+	// ptPoly := ringQ.NewPoly()
+	// fmt.Printf("modQ: %v, modT: %v\n", modQ, modT)
+	// delta := new(big.Int).ModInverse(modT, modQ).Uint64()
+	// encodeRingQMulDelta(m, params, delta, ptPoly, ct.MetaData.IsBatched)
+
 	pt := bgv.NewPlaintext(params, params.MaxLevel())
-	pt.IsBatched = false
-	ptPoly := ringQ.NewPoly()
-	delta := params.DefaultScale()
-	fmt.Printf("modQ: %v, modT: %v\n", modQ, modT)
-	// delta.Value = *new(big.Float).SetMode(big.ToNearestEven).Quo(
-	// 	new(big.Float).SetInt(modQ),
-	// 	new(big.Float).SetInt(modT),
-	// )
-
-	delta.Value = *new(big.Float).Add(
-		new(big.Float).Quo(
-			new(big.Float).SetInt(modQ),
-			new(big.Float).SetInt(modT),
-		),
-		new(big.Float).SetFloat64(0.5),
-	)
-
-	encodeRingQMulDelta(m, params, delta, ptPoly)
+	pt.MetaData = ct.MetaData
+	bgv.NewEncoder(params).Encode(m, pt)
+	ptPoly := pt.Value
 
 	// Convert plaintext to string
 	ptString := core.RingPolyToStringsCentered(ringQ, ptPoly, false, false)

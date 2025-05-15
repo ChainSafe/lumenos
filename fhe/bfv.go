@@ -19,7 +19,7 @@ type ServerBFV struct {
 }
 
 func NewBackendBFV(plaintextField *core.PrimeField, params bgv.Parameters, pk *rlwe.PublicKey, evk rlwe.EvaluationKeySet) *ServerBFV {
-	evaluator := bgv.NewEvaluator(params, evk)
+	evaluator := bgv.NewEvaluator(params, evk) // TODO: use BFV scaleInvariant=tre
 	encoder := bgv.NewEncoder(params)
 	encryptor := rlwe.NewEncryptor(params, pk)
 	return &ServerBFV{plaintextField, params, evaluator, encoder, encryptor}

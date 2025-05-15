@@ -2,6 +2,7 @@ package vdec
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
@@ -9,7 +10,11 @@ import (
 )
 
 func BatchedVdec(cts []*rlwe.Ciphertext, rows int, client *fhe.ClientBFV, transcript *core.Transcript) ([][]*core.Element, error) {
-	matrix := make([][]*core.Element, len(cts))
+	matrix := make([][]*core.Element, rows)
+	for j := range matrix {
+		matrix[j] = make([]*core.Element, len(cts))
+	}
+
 	for j, col := range cts {
 		plaintext := client.DecryptNew(col)
 		column := make([]uint64, rows)
@@ -17,9 +22,8 @@ func BatchedVdec(cts []*rlwe.Ciphertext, rows int, client *fhe.ClientBFV, transc
 			return nil, err
 		}
 
-		matrix[j] = make([]*core.Element, rows)
 		for i := range column {
-			matrix[j][i] = core.NewElement(column[i])
+			matrix[i][j] = core.NewElement(column[i])
 		}
 	}
 
@@ -46,6 +50,10 @@ func BatchedVdec(cts []*rlwe.Ciphertext, rows int, client *fhe.ClientBFV, transc
 	seed := []byte{2} // TODO: make this random?
 
 	// TODO: ring and modulus switch
+	if backend.GetParameters().RingQ().Level() > 1 {
+		backend.DropLevel(batchCt, 1)
+		fmt.Printf("drapped level to batchCt[0].LevelQ(): %d\n", batchCt.LevelQ())
+	}
 
 	CallVdecProver(seed, *backend.GetParameters(), client.PoDSK(), batchCt, m)
 
