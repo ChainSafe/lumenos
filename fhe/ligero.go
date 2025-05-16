@@ -31,7 +31,8 @@ type LigeroProver struct {
 }
 
 // NewLigeroCommitter creates a new LigeroCommitter based on security bits and size.
-func NewLigeroCommitter(securityBits float64, size int, rhoInv int) (*LigeroCommitter, error) {
+func NewLigeroCommitter(securityBits float64, rows int, cols int, rhoInv int) (*LigeroCommitter, error) {
+	size := rows * cols
 	if size <= 0 {
 		return nil, fmt.Errorf("size must be positive")
 	}
@@ -50,8 +51,8 @@ func NewLigeroCommitter(securityBits float64, size int, rhoInv int) (*LigeroComm
 	}
 
 	// Pick matrix aspect ratio to minimize proof size.
-	cols := math.Ceil(math.Sqrt(float64(size)))
-	rows := math.Ceil(float64(size) / cols)
+	// cols := math.Ceil(math.Sqrt(float64(size)))
+	// rows := math.Ceil(float64(size) / cols)
 
 	return &LigeroCommitter{
 		LigeroMetadata: LigeroMetadata{
@@ -216,6 +217,8 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool) (*Proof, er
 			Values: queriedCols[i],
 		}
 	}
+
+	println("Number of queried columns:", len(queriedColsPairs))
 
 	if verifiable {
 		transcript := core.NewTranscript("vdec")

@@ -97,14 +97,11 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	}
 	fmt.Printf("Encryption took: %v\n", time.Since(start))
 
-	ligero := &fhe.LigeroCommitter{
-		LigeroMetadata: fhe.LigeroMetadata{
-			Rows:    rows,
-			Cols:    cols,
-			RhoInv:  rhoInv,
-			Queries: 1,
-		},
+	ligero, err := fhe.NewLigeroCommitter(128, rows, cols, rhoInv)
+	if err != nil {
+		panic(err)
 	}
+	ligero.Queries = 1 // TODO: fix for more than 1 query
 
 	comm, _, err := ligero.Commit(ciphertexts, s)
 	if err != nil {

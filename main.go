@@ -80,14 +80,11 @@ func main() {
 	}
 	fmt.Printf("Encryption took: %v\n", time.Since(start))
 
-	ligero := &fhe.LigeroCommitter{
-		LigeroMetadata: fhe.LigeroMetadata{
-			Rows:    Rows,
-			Cols:    Cols,
-			RhoInv:  RhoInv,
-			Queries: 1,
-		},
+	ligero, err := fhe.NewLigeroCommitter(128, Rows, Cols, RhoInv)
+	if err != nil {
+		panic(err)
 	}
+	ligero.Queries = 1 // TODO: fix for more than 1 query
 
 	comm, _, err := ligero.Commit(ciphertexts, s)
 	if err != nil {

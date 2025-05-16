@@ -90,13 +90,11 @@ func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, bac
 		fmt.Printf("rescaled batch ciphertext level Q (%d) -> %d\n", levelWas, batchCt.LevelQ())
 	}
 
-	CallVdecProver(seed, *backend.GetParameters(), witness, batchCt, m)
-
-	return nil
+	return CallVdecProver(seed, *backend.GetParameters(), witness, batchCt, m)
 }
 
 // CallVdecProver calls the C implementation of the vdec prover.
-func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice) {
+func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice) error {
 	C.lazer_init()
 	fmt.Println("Lazer.c initialized.")
 
@@ -119,11 +117,11 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 
 	rq := C.GetRqFromVdecParams1()
 	if rq == nil {
-		log.Fatal("Failed to get Rq from params1")
+		return fmt.Errorf("failed to get Rq from params1")
 	}
 	proofDegree := uint32(C.polyring_get_deg(rq))
 	if proofDegree == 0 {
-		log.Fatal("Failed to get proof degree (Rq->d)")
+		return fmt.Errorf("failed to get proof degree (Rq->d)")
 	}
 	fmt.Printf("Proof degree (Rq->d): %d\n", proofDegree)
 
@@ -143,15 +141,17 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 
 	skVec := C.CreatePolyvec(rq, C.uint(numChunkPolys))
 	if skVec == nil {
-		log.Fatal("Failed to create sk polyvec")
+		return fmt.Errorf("failed to create sk polyvec")
 	}
 	defer C.FreePolyvec(skVec)
 
 	for i := 0; i < numChunkPolys; i++ {
 		offset := i * int(proofDegree)
 		if offset+int(proofDegree) > len(skCoeffs) {
-			log.Fatalf("Error populating skVec: skCoeffs is too short for polynomial %d. Need %d coefficients starting at offset %d, but len(skCoeffs) is %d.",
-				i, int(proofDegree), offset, len(skCoeffs))
+			log.Fatalf(
+				"error populating skVec: skCoeffs is too short for polynomial %d. need %d coefficients starting at offset %d, but len(skCoeffs) is %d.",
+				i, int(proofDegree), offset, len(skCoeffs),
+			)
 		}
 		polyCoeffsSlice := skCoeffs[offset : offset+int(proofDegree)]
 		C.SetPolyvecPolyCoeffs(skVec, C.uint(i), (*C.int64_t)(unsafe.Pointer(&polyCoeffsSlice[0])), C.uint(proofDegree))
@@ -161,7 +161,7 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 
 	ct0Vec := C.CreatePolyvec(rq, C.uint(totalPolysCt))
 	if ct0Vec == nil {
-		log.Fatal("Failed to create ct0 polyvec")
+		return fmt.Errorf("failed to create ct0 polyvec")
 	}
 	defer C.FreePolyvec(ct0Vec)
 	for k := 0; k < CT_COUNT; k++ {
@@ -178,7 +178,7 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 
 	ct1Vec := C.CreatePolyvec(rq, C.uint(totalPolysCt))
 	if ct1Vec == nil {
-		log.Fatal("Failed to create ct1 polyvec")
+		return fmt.Errorf("failed to create ct1 polyvec")
 	}
 	defer C.FreePolyvec(ct1Vec)
 	for k := 0; k < CT_COUNT; k++ {
@@ -195,7 +195,7 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 
 	mDeltaVec := C.CreatePolyvec(rq, C.uint(totalPolysCt))
 	if mDeltaVec == nil {
-		log.Fatal("Failed to create m_delta polyvec")
+		return fmt.Errorf("failed to create m_delta polyvec")
 	}
 	defer C.FreePolyvec(mDeltaVec)
 	for k := 0; k < CT_COUNT; k++ {
@@ -203,7 +203,7 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 			polyIndexInCVec := k*numChunkPolys + i
 			offset := i * int(proofDegree)
 			if offset+int(proofDegree) > len(mScaled) {
-				log.Fatalf("Error populating mDeltaVec: ptCoeffs is too short for component %d, polynomial %d.", k, i)
+				return fmt.Errorf("error populating mDeltaVec: ptCoeffs is too short for component %d, polynomial %d.", k, i)
 			}
 			polyCoeffsSlice := mScaled[offset : offset+int(proofDegree)]
 			C.SetPolyvecPolyCoeffs(mDeltaVec, C.uint(polyIndexInCVec), (*C.int64_t)(unsafe.Pointer(&polyCoeffsSlice[0])), C.uint(proofDegree))
@@ -214,7 +214,7 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 	// Prove
 	fmt.Println("Calling vdec_lnp_tbox...")
 	start = time.Now()
-	C.ProveVdecLnpTbox(
+	result := C.ProveVdecLnpTbox(
 		&seedChar[0],
 		skVec,
 		&skSign[0],
@@ -224,10 +224,15 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 		mDeltaVec,
 		fheDegree,
 	)
+	if result == 0 {
+		return fmt.Errorf("generated proof is not valid")
+	}
 	fmt.Println("vdec_lnp_tbox call completed.")
 	fmt.Printf("VDec prover time: %v\n", time.Since(start))
 
 	C.lazer_fini()
+
+	return nil
 }
 
 func GenerateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice, params bgv.Parameters) error {

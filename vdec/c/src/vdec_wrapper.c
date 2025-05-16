@@ -2,7 +2,7 @@
 #include "../lazer/src/memory.h"
 #include <stdio.h>
 
-void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
+int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
                    polyvec_t sk, int8_t sk_sign[], polyvec_t ct0, polyvec_t ct1,
                    polyvec_t m_delta, unsigned int fhe_degree);
 
@@ -69,7 +69,7 @@ polyring_srcptr GetPolyvecRing(polyvec_struct *pv_s_ptr)
     return ((polyvec_ptr)pv_s_ptr)->ring;
 }
 
-void ProveVdecLnpTbox(
+int ProveVdecLnpTbox(
     uint8_t seed[32],
     polyvec_struct *sk_s_ptr,
     int8_t sk_sign[],
@@ -81,7 +81,7 @@ void ProveVdecLnpTbox(
 {
     (void)sk_sign_len;
 
-    vdec_lnp_tbox(seed, params1, sk_s_ptr, sk_sign,
+    return vdec_lnp_tbox(seed, params1, sk_s_ptr, sk_sign,
                   ct0_s_ptr, ct1_s_ptr,
                   m_delta_s_ptr, fhe_degree);
 }
