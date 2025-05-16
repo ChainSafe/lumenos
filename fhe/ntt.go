@@ -1,13 +1,13 @@
+// TODO: try matrix-based DFT evaluator.
+// Reference: https://github.com/tuneinsight/lattigo/blob/ced00885fbfa527d71b8e5ba93c07a882ca16fde/circuits/ckks/dft/dft.go#L2
+
 package fhe
 
 import (
-	"github.com/timofey/fhe-experiments/lattigo/core"
+	"github.com/nulltea/lumenos/core"
 
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 )
-
-// counter for multiplications in NTT
-var MultiplicationsCounter int
 
 func NTT(values []*rlwe.Ciphertext, size int, backend *ServerBFV) ([]*rlwe.Ciphertext, error) {
 	if err := nttInner(values, size, backend); err != nil {
@@ -61,7 +61,6 @@ func nttInner(v []*rlwe.Ciphertext, size int, backend *ServerBFV) error {
 			if err != nil {
 				return err
 			}
-			MultiplicationsCounter++
 
 			// (v[0], v[1]) = (v[0] + v[1], v[0] - v[1])
 			v0, v1 = v[i].CopyNew(), v[i+1].CopyNew()
@@ -136,18 +135,15 @@ func nttInner(v []*rlwe.Ciphertext, size int, backend *ServerBFV) error {
 			if err != nil {
 				return err
 			}
-			MultiplicationsCounter++
 			err = backend.Mul(v[i+6], backend.Field().RootForwardUint64(4), v[i+6])
 			if err != nil {
 				return err
 			}
-			MultiplicationsCounter++
 			omega8_3 := backend.Field().Pow(3, backend.Field().RootForward(8)).Uint64()
 			err = backend.Mul(v[i+7], omega8_3, v[i+7])
 			if err != nil {
 				return err
 			}
-			MultiplicationsCounter++
 
 			// Second level butterflies
 			v0, v2 = v[i].CopyNew(), v[i+2].CopyNew()
@@ -273,7 +269,6 @@ func nttInner(v []*rlwe.Ciphertext, size int, backend *ServerBFV) error {
 					if err != nil {
 						return err
 					}
-					MultiplicationsCounter++
 					idx += step
 				}
 			}

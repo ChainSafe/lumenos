@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/timofey/fhe-experiments/lattigo/core"
+	"github.com/nulltea/lumenos/core"
+	"github.com/nulltea/lumenos/vdec"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
@@ -73,6 +74,7 @@ func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV) 
 		leafs[i] = encoded[i].CopyNew()
 	}
 
+	// TODO: Merkle tree with leafs -- inner prouducts of columns and some random vector, cheaper?
 	tree, err := core.NewTree(leafs)
 	if err != nil {
 		return nil, nil, err
@@ -86,7 +88,7 @@ func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV) 
 	}, tree.MerkleRoot(), nil
 }
 
-type Proof struct {
+type EncryptedProof struct {
 	Metadata    LigeroMetadata
 	Root        []byte
 	MatR        []*rlwe.Ciphertext
@@ -95,7 +97,7 @@ type Proof struct {
 	MerklePaths []core.MerklePath
 }
 
-func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript *core.Transcript) (*Proof, error) {
+func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript *core.Transcript) (*EncryptedProof, error) {
 	cols := c.Committer.Cols
 	rows := c.Committer.Rows
 
@@ -167,7 +169,7 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 		}
 	}
 
-	proof := &Proof{
+	proof := &EncryptedProof{
 		Metadata:    c.Committer.LigeroMetadata,
 		Root:        c.Tree.MerkleRoot(),
 		MatR:        matR,
@@ -179,7 +181,85 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 	return proof, nil
 }
 
-func (p *Proof) Verify(point *core.Element, value *core.Element, backend *ClientBFV, transcript *core.Transcript) error {
+type Proof struct {
+	Metadata    LigeroMetadata
+	Root        []byte
+	MatR        []*core.Element
+	MatZ        []*core.Element
+	QueriedCols []*vdec.ColumnInstance
+	MerklePaths []core.MerklePath
+}
+
+func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool) (*Proof, error) {
+	rows := p.Metadata.Rows
+
+	// Decrypt queried columns
+	queriedCols := make([][]*core.Element, len(p.QueriedCols))
+
+	for j, col := range p.QueriedCols {
+		plaintext := client.DecryptNew(col)
+		column := make([]uint64, rows)
+		if err := client.Decode(plaintext, column); err != nil {
+			return nil, err
+		}
+
+		queriedCols[j] = make([]*core.Element, rows)
+		for i := range column {
+			queriedCols[j][i] = core.NewElement(column[i])
+		}
+	}
+
+	queriedColsPairs := make([]*vdec.ColumnInstance, len(p.QueriedCols))
+	for i := range p.QueriedCols {
+		queriedColsPairs[i] = &vdec.ColumnInstance{
+			Ct:     p.QueriedCols[i],
+			Values: queriedCols[i],
+		}
+	}
+
+	if verifiable {
+		transcript := core.NewTranscript("vdec")
+
+		err := vdec.ProveBfvDecBatched(queriedColsPairs, client.SecretKey(), client.Evaluator, client.Field(), transcript)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Decrypt row inner products
+	matR := make([]*core.Element, len(p.MatR))
+	for i, colR := range p.MatR {
+		pt := client.DecryptNew(colR) // TODO: can descrypt just first slot?
+		column := make([]uint64, rows)
+		if err := client.Decode(pt, column); err != nil {
+			return nil, err
+		}
+		matR[i] = core.NewElement(column[0])
+	}
+
+	matZ := make([]*core.Element, len(p.MatZ))
+	for i, colZ := range p.MatZ {
+		pt := client.DecryptNew(colZ) // TODO: can descrypt just first slot?
+		column := make([]uint64, rows)
+		if err := client.Decode(pt, column); err != nil {
+			return nil, err
+		}
+		matZ[i] = core.NewElement(column[0])
+	}
+
+	proof := &Proof{
+		Metadata:    p.Metadata,
+		Root:        p.Root,
+		MatR:        matR,
+		MatZ:        matZ,
+		QueriedCols: queriedColsPairs,
+		MerklePaths: p.MerklePaths,
+	}
+
+	return proof, nil
+}
+
+func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientBFV, transcript *core.Transcript) error {
 	rows := p.Metadata.Rows
 	cols := p.Metadata.Cols
 	root := p.Root
@@ -189,45 +269,10 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, backend *Client
 	r := make([]*core.Element, rows)
 	transcript.SampleFields("r", r)
 
-	// Decrypt queried columns
-	queriedCols := make([][]*core.Element, len(p.QueriedCols))
-	for j, col := range p.QueriedCols {
-		plaintext := backend.DecryptNew(col)
-		column := make([]uint64, rows)
-		if err := backend.Decode(plaintext, column); err != nil {
-			return err
-		}
+	// Encode row inner products
+	encodedMatR := core.Encode(p.MatR, p.Metadata.RhoInv, client.Field())
 
-		queriedCols[j] = make([]*core.Element, rows)
-		for i := range column {
-			queriedCols[j][i] = core.NewElement(column[i])
-		}
-	}
-
-	// Decrypt and encode
-	matR := make([]*core.Element, len(p.MatR))
-	for i, colR := range p.MatR {
-		pt := backend.DecryptNew(colR) // TODO: can descrypt just first slot?
-		column := make([]uint64, rows)
-		if err := backend.Decode(pt, column); err != nil {
-			return err
-		}
-		matR[i] = core.NewElement(column[0])
-	}
-
-	encodedMatR := core.Encode(matR, p.Metadata.RhoInv, backend.Field())
-
-	matZ := make([]*core.Element, len(p.MatZ))
-	for i, colZ := range p.MatZ {
-		pt := backend.DecryptNew(colZ) // TODO: can descrypt just first slot?
-		column := make([]uint64, rows)
-		if err := backend.Decode(pt, column); err != nil {
-			return err
-		}
-		matZ[i] = core.NewElement(column[0])
-	}
-
-	encodedMatZ := core.Encode(matZ, p.Metadata.RhoInv, backend.Field())
+	encodedMatZ := core.Encode(p.MatZ, p.Metadata.RhoInv, client.Field())
 
 	transcript.AppendField("point", point)
 
@@ -236,40 +281,39 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, backend *Client
 	powA := core.One()
 	for i := range cols {
 		a[i] = powA
-		backend.Field().MulAssign(powA, point, powA)
+		client.Field().MulAssign(powA, point, powA)
 	}
 
 	// Generate vector `b = [1, z^m, z^(2m), ..., z^((m-1)m)]`
 	b := make([]*core.Element, rows)
-	zPow := backend.Field().Pow(uint64(cols), point)
+	zPow := client.Field().Pow(uint64(cols), point)
 	if zPow.NotEqual(powA) {
 		panic("zPow is not equal to powA")
 	}
 	powB := core.One()
 	for i := range b {
 		b[i] = powB
-		backend.Field().MulAssign(powB, zPow, powB)
+		client.Field().MulAssign(powB, zPow, powB)
 	}
 
 	extCols := cols * p.Metadata.RhoInv
 	queryIndices := sampleQueryIndices(transcript, p.Metadata.Queries, extCols)
 
 	for i, queryColIdx := range queryIndices {
-		extColCt := p.QueriedCols[i]
-		if ok, err := core.VerifyMerklePath(extColCt, p.MerklePaths[i], root, uint(queryColIdx)); err != nil || !ok {
+		if ok, err := core.VerifyMerklePath(p.QueriedCols[i].Ct, p.MerklePaths[i], root, uint(queryColIdx)); err != nil || !ok {
 			return fmt.Errorf("failed to verify merkle path for column %d", queryColIdx)
 		}
 
-		if innerProduct(queriedCols[i], r, backend.Field()).NotEqual(encodedMatR[queryColIdx]) {
+		if core.InnerProduct(p.QueriedCols[i].Values, r, client.Field()).NotEqual(encodedMatR[queryColIdx]) {
 			return fmt.Errorf("well-formedness R check failed for column %d", queryColIdx)
 		}
 
-		if innerProduct(queriedCols[i], b, backend.Field()).NotEqual(encodedMatZ[queryColIdx]) {
+		if core.InnerProduct(p.QueriedCols[i].Values, b, client.Field()).NotEqual(encodedMatZ[queryColIdx]) {
 			return fmt.Errorf("well-formedness B check failed for column %d", queryColIdx)
 		}
 	}
 
-	if innerProduct(matZ, a, backend.Field()).NotEqual(value) {
+	if core.InnerProduct(p.MatZ, a, client.Field()).NotEqual(value) {
 		return fmt.Errorf(" claimed value does not match the evaluation of the committed polynomial")
 	}
 
@@ -282,19 +326,4 @@ func sampleQueryIndices(transcript *core.Transcript, queries int, extCols int) [
 		queryIndices[i] = int(transcript.SampleUint64("query") % uint64(extCols))
 	}
 	return queryIndices
-}
-
-func innerProduct(v []*core.Element, r []*core.Element, field *core.PrimeField) *core.Element {
-	if len(v) != len(r) {
-		panic("vector lengths do not match")
-	}
-
-	sum := core.Zero()
-
-	for i := 0; i < len(v); i++ {
-		product := field.Mul(v[i], r[i])
-		sum = field.Add(sum, product)
-	}
-
-	return sum
 }
