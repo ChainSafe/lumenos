@@ -1,4 +1,5 @@
-[submodule "vdec/c"]
-	path = vdec/c
-	url = https://github.com/nulltea/vdec-lazer
-	branch = vdec
+
+[submodule "vdec/c/lazer"]
+	path = vdec/c/lazer
+	url = https://github.com/nulltea/vdec-lazer.git
+	branch = lazer_patch
