@@ -21,7 +21,7 @@ CFLAGS_VDEC = $(CFLAGS) $(OPENMP_FLAGS)
 # Proof of decryption
 # =======================================
 # Define vdec source directory
-VDEC_DIR = vdec
+VDEC_DIR = src
 VDEC_SRC = $(VDEC_DIR)/vdec.c
 # =======================================
 
@@ -98,3 +98,6 @@ clean: lazer-clean
 	rm -f $(VDEC_DIR)/*.o
 	rm -f libvdecapi.so
 	rm -f liblazer.so liblabrador*.so
+
+params:
+	cd ./scripts && sage vdec_params_generator.sage ../src/vdec_params.sage > ../src/vdec_params.h

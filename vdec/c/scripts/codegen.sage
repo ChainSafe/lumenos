@@ -220,8 +220,7 @@ def root_list(root, exps, p, mont):
 #        n, q, ND.Uniform(-nu, nu), ND.Uniform(-nu, nu), n)
 #    L = LWE.estimate(lweparams)
 def get_delta_mlwe(nu, n, d, q):
-    #XXXload("https://bitbucket.org/malb/lwe-estimator/raw/HEAD/estimator.py")
-    load("../third_party/estimator.py")
+    load("../lazer/third_party/estimator.py")
     n = n * d
     stdev = mp.sqrt(mpf((2*nu+1) ** 2 - 1)/mpf(12))
     alpha = alphaf(sigmaf(stdev), q)
