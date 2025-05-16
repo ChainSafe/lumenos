@@ -5,7 +5,7 @@ package vdec
 // Run `make libvdecapi` or `make all` in the ./c/ directory.
 
 /*
-#cgo CFLAGS: -I./c/vdec -I./c -I./c/lazer/src -I./c/lazer/third_party/Falcon-impl-20211101 -I./c/lazer/third_party/hexl-development/hexl/include
+#cgo CFLAGS: -I./c/src -I./c -I./c/lazer/src -I./c/lazer/third_party/Falcon-impl-20211101 -I./c/lazer/third_party/hexl-development/hexl/include
 #cgo LDFLAGS: -L./c -lvdecapi
 #cgo LDFLAGS: -L./c/lazer -llazer
 #cgo LDFLAGS: -L./c/lazer/third_party/hexl-development/build/hexl/lib -lhexl
@@ -14,7 +14,7 @@ package vdec
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "c/vdec/vdec_wrapper.h"
+#include "c/src/vdec_wrapper.h"
 
 // Include the wrapper header which now declares all necessary types and functions
 // Matching definitions in vdec_wrapper.h

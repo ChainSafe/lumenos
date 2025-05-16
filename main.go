@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
@@ -12,143 +13,111 @@ import (
 )
 
 const (
-	Rows = 1
-	Cols = 10
+	Rows    = 2048
+	Cols    = 1024
+	Modulus = 144115188075593729
+	RhoInv  = 2
 )
 
 func main() {
-	params, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
-		LogN: 11,
-		LogQ: []int{60, 55},
-		// LogP:             []int{55, 55},
-		PlaintextModulus: 0x3ee0001,
-	})
+	start := time.Now()
 
+	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(Cols, 13, Modulus)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("bgv.Q: %v\n", params.Q())
-	fmt.Printf("bgv.P: %v\n", params.P())
-	fmt.Printf("bgv.PlaintextModulus: %v\n", params.PlaintextModulus())
+	params, err := bgv.NewParametersFromLiteral(paramsLiteral)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Parameter generation took: %v\n", time.Since(start))
 
 	// Generate keys
-	kgenFHE := rlwe.NewKeyGenerator(params)
-	sk, pk := kgenFHE.GenKeyPairNew()
+	start = time.Now()
+	kgen := rlwe.NewKeyGenerator(params)
+	sk, pk := kgen.GenKeyPairNew()
+	fmt.Printf("Key generation took: %v\n", time.Since(start))
 
-	ptField, err := core.NewPrimeField(params.PlaintextModulus(), 8)
-	if err != nil {
-		panic(err)
-	}
+	// Relinearization Key
+	rlk := kgen.GenRelinearizationKeyNew(sk)
 
-	s := fhe.NewBackendBFV(&ptField, params, pk, nil)
-	c := fhe.NewClientBFV(&ptField, params, sk)
+	rotKeys := kgen.GenGaloisKeysNew(params.GaloisElementsForInnerSum(1, Rows), sk)
 
-	_ = s
-	_ = c
-}
+	// Evaluation Key Set with the Relinearization Key
+	evk := rlwe.NewMemEvaluationKeySet(rlk, rotKeys...)
 
-func test_ring_switch() {
-	paramsFHE, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
-		LogN:             11,
-		LogQ:             []int{56},
-		LogP:             []int{55, 55},
-		PlaintextModulus: 0x3ee0001,
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
-	// Generate keys
-	kgenFHE := rlwe.NewKeyGenerator(paramsFHE)
-	sk, _ := kgenFHE.GenKeyPairNew()
-
-	// Crucial to use the same moduli
-	qs, ps := make([]uint64, len(paramsFHE.Q())), make([]uint64, len(paramsFHE.P()))
-	for i, qi := range paramsFHE.Q() {
-		qs[i] = qi
-	}
-	for i, pi := range paramsFHE.P() {
-		ps[i] = pi
-	}
-
-	paramsPoD, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
-		LogN:             10,
-		Q:                qs,
-		P:                ps,
-		PlaintextModulus: 0x3ee0001,
-	})
+	ptField, err := core.NewPrimeField(params.PlaintextModulus(), Cols*2)
 	if err != nil {
 		panic(err)
 	}
 
 	// Initialize the necessary objects
-	server := struct {
-		*bgv.Encoder
-		*rlwe.Encryptor
-		*bgv.Evaluator
-	}{
-		Encoder:   bgv.NewEncoder(paramsFHE),
-		Encryptor: rlwe.NewEncryptor(paramsFHE, sk),
-		Evaluator: bgv.NewEvaluator(paramsFHE, nil),
-	}
+	s := fhe.NewBackendBFV(&ptField, params, pk, evk)
+	c := fhe.NewClientBFV(&ptField, params, sk)
 
-	skPoD := rlwe.NewKeyGenerator(paramsPoD).GenSecretKeyNew()
-
-	lvlQ := paramsFHE.MaxLevel()  // 5
-	lvlP := paramsFHE.MaxLevelP() // 2  (three Pi)
-	base := 13                    // 2¹³ = 8192
-
-	ringSwitchEvk := rlwe.NewKeyGenerator(paramsFHE).GenEvaluationKeyNew(
-		sk, skPoD,
-		rlwe.EvaluationKeyParameters{
-			LevelQ:               &lvlQ,
-			LevelP:               &lvlP,
-			BaseTwoDecomposition: &base,
-		},
-	)
-	m := []uint64{1}
-	plaintext := bgv.NewPlaintext(paramsFHE, paramsFHE.MaxLevel())
-	plaintext.IsBatched = false
-	// plaintext.IsNTT = false
-	if err := server.Encode(m, plaintext); err != nil {
-		panic(err)
-	}
-
-	ct, err := server.Encryptor.EncryptNew(plaintext)
+	start = time.Now()
+	matrix, batchedCols, err := core.RandomMatrixRowMajor(Rows, Cols, func(u []uint64) *rlwe.Plaintext {
+		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
+		if err := c.Encode(u, plaintext); err != nil {
+			panic(err)
+		}
+		return plaintext
+	})
 	if err != nil {
 		panic(err)
 	}
-	ctPoD := rlwe.NewCiphertext(paramsPoD, 1, paramsPoD.MaxLevel())
-	fmt.Printf("ct is batched: %v\n", ct.IsBatched)
+	fmt.Printf("Matrix generation and encoding took: %v\n", time.Since(start))
+	// Encrypt the batched columns
+	start = time.Now()
+	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
+	for i, plaintext := range batchedCols {
+		ciphertext, err := s.EncryptNew(plaintext)
+		if err != nil {
+			panic(err)
+		}
+		ciphertexts[i] = ciphertext
+	}
+	fmt.Printf("Encryption took: %v\n", time.Since(start))
 
-	// ringQ := paramsFHE.RingQ().AtLevel(ct.Level()) // current level (≤5) RingQP?
+	ligero := &fhe.LigeroCommitter{
+		LigeroMetadata: fhe.LigeroMetadata{
+			Rows:    Rows,
+			Cols:    Cols,
+			RhoInv:  RhoInv,
+			Queries: 1,
+		},
+	}
 
-	// for _, poly := range ct.Value { // c0 and c1
-	// 	ringQ.IMForm(poly, poly)
-	// 	ringQ.INTT(poly, poly) // slots -> coeffs
-	// }
-	// ct.IsNTT = false
-	// ct.IsBatched = false // MUST be false while in coeff domain
-
-	// ct.IsNTT = false
-	// ct.IsBatched = false
-	if err := server.ApplyEvaluationKey(ct, ringSwitchEvk, ctPoD); err != nil {
+	comm, _, err := ligero.Commit(ciphertexts, s)
+	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("ctPoD is batched: %v\n", ctPoD.IsBatched)
 
-	ptPoD := rlwe.NewDecryptor(paramsPoD, skPoD).DecryptNew(ctPoD)
-	fmt.Printf("ptPoD is batched: %v\n", ptPoD.IsBatched)
+	z := core.NewElement(1)
 
-	mCheck := make([]uint64, 1)
-	if err := bgv.NewEncoder(paramsPoD).Decode(ptPoD, mCheck); err != nil {
+	start = time.Now()
+	transcript := core.NewTranscript("test")
+	encryptedProof, err := comm.Prove(z, s, transcript)
+	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("dataCheck: %v\n", mCheck)
+	fmt.Printf("FHE evaluation took: %v\n", time.Since(start))
 
-	if m[0] != mCheck[0] {
-		panic("data mismatch")
+	verifierTranscript := core.NewTranscript("test")
+
+	poly := core.NewDensePolyFromMatrix(matrix)
+	value := poly.Evaluate(s.Field(), z)
+
+	proof, err := encryptedProof.Decrypt(c, true)
+	if err != nil {
+		panic(err)
 	}
+
+	err = proof.Verify(z, value, c, verifierTranscript)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
 }

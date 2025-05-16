@@ -162,7 +162,6 @@ func testVdecBatched(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.C
 		elapsed = time.Since(start)
 		fmt.Printf("Decrypt and decode took %s\n", elapsed)
 
-		// Assert that batchedCol and batchColCheck are equal
 		for i := range batchedCol {
 			if !batchColCheck[i].Equal(batchedCol[i]) {
 				t.Fatalf("Matrices differ at [%d]: expected %v, got %v", i, batchColCheck[i], batchedCol[i])
