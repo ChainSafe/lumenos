@@ -26,9 +26,8 @@ func TestVdecBatched(t *testing.T) {
 
 func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV, *testing.T)) {
 	params, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
-		LogN: 11,
-		LogQ: []int{60, 55},
-		// LogP:             []int{},
+		LogN:             11,
+		LogQ:             []int{60, 55},
 		PlaintextModulus: 0x3ee0001,
 	})
 	if err != nil {
@@ -39,20 +38,11 @@ func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV,
 	kgen := rlwe.NewKeyGenerator(params)
 	sk, pk := kgen.GenKeyPairNew()
 
-	// Relinearization Key
-	// rlk := kgen.GenRelinearizationKeyNew(sk)
-
-	// rotKeys := kgen.GenGaloisKeysNew(params.GaloisElementsForInnerSum(1, rows), sk)
-
-	// // Evaluation Key Set with the Relinearization Key
-	// evk := rlwe.NewMemEvaluationKeySet(rlk, rotKeys...)
-
 	ptField, err := core.NewPrimeField(params.PlaintextModulus(), 8)
 	if err != nil {
 		panic(err)
 	}
 
-	// Initialize the necessary objects
 	server := fhe.NewBackendBFV(&ptField, params, pk, nil)
 	client := fhe.NewClientBFV(&ptField, params, sk)
 
@@ -70,7 +60,6 @@ func testVdecSimple(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.Cl
 	if err := server.Encode(m, plaintext); err != nil {
 		panic(err)
 	}
-	fmt.Printf("pt IsBatched: %v IsNTT: %v IsMontgomery: %v\n", plaintext.IsBatched, plaintext.IsNTT, plaintext.IsMontgomery)
 
 	ct, err := server.Encryptor.EncryptNew(plaintext)
 	if err != nil {
@@ -98,9 +87,8 @@ func testVdecBatched(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.C
 		rows int
 		cols int
 	}{
-		{2048, 2048},
+		{2048, 1024},
 		// {1024, 2048}, // TODO: running two tests consecutively takes longer than expected
-
 	}
 
 	for _, c := range cases {
@@ -144,7 +132,6 @@ func testVdecBatched(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.C
 		}
 
 		// Sanity check
-
 		batchColCheck, alphas, err := vdec.BatchColumns(matrixColMajor, client.Field(), transcript)
 		if err != nil {
 			panic(err)

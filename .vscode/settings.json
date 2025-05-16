@@ -4,6 +4,11 @@
         "vdec_ct_gbfv_60bits_small.h": "c",
         "vdec_ct_60bits.h": "c",
         "vdec_quad_params.h": "c",
-        "vdec_params.h": "c"
+        "vdec_params.h": "c",
+        "vdec_ct_gbfv_60bits.h": "c",
+        "lazer.h": "c",
+        "stdio.h": "c",
+        "memory.h": "c",
+        "vdec_wrapper.h": "c"
     }
 }

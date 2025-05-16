@@ -5,9 +5,10 @@ package vdec
 // Run `make libvdecapi` or `make all` in the ./c/ directory.
 
 /*
-#cgo CFLAGS: -I./c/vdec -I./c -I./c/src -I./c/third_party/Falcon-impl-20211101 -I./c/third_party/hexl-development/hexl/include
-#cgo LDFLAGS: -L./c -lvdecapi -llazer
-#cgo LDFLAGS: -L./c/third_party/hexl-development/build/hexl/lib -lhexl
+#cgo CFLAGS: -I./c/vdec -I./c -I./c/lazer/src -I./c/lazer/third_party/Falcon-impl-20211101 -I./c/lazer/third_party/hexl-development/hexl/include
+#cgo LDFLAGS: -L./c -lvdecapi
+#cgo LDFLAGS: -L./c/lazer -llazer
+#cgo LDFLAGS: -L./c/lazer/third_party/hexl-development/build/hexl/lib -lhexl
 #cgo LDFLAGS: -lstdc++ -lmpfr -lgmp -lm -fopenmp
 
 #include <stdint.h>
@@ -28,7 +29,6 @@ import "C"
 import (
 	"fmt"
 	"log"
-	"math/big"
 	"os"
 	"strconv"
 	"strings"
@@ -37,7 +37,6 @@ import (
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
-	"github.com/tuneinsight/lattigo/v6/ring"
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
@@ -80,7 +79,7 @@ func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, bac
 		return err
 	}
 	fmt.Printf("Batching ciphertexts evaluation took %s\n", time.Since(start))
-	seed := []byte{2} // TODO: make this random?
+	seed := []byte{2} // TODO: use transcript random seed
 
 	// TODO: ring and modulus switch
 	levelWas := batchCt.LevelQ()
@@ -110,28 +109,6 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 	skCoeffs := core.RingPolyToCoeffsCentered(skRingQ, *sk.Value.Q.CopyNew(), true, true)
 	ct0Coeffs := core.RingPolyToCoeffsCentered(ringQ, *ct.Value[0].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 	ct1Coeffs := core.RingPolyToCoeffsCentered(ringQ, *ct.Value[1].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
-
-	// ptPoly := ringQ.NewPoly()
-	// delta := params.DefaultScale()
-	// delta.Value = *new(big.Float).SetMode(big.ToNearestEven).Quo(
-	// 	new(big.Float).SetInt(modQ),
-	// 	new(big.Float).SetInt(modT),
-	// )
-
-	// TODO: how to round to nearest even like in python `delta = round(mod/mod_t)`
-	// modQ := ringQ.ModulusAtLevel[ct.LevelQ()]
-	// modT := params.RingT().Modulus()
-	// ptPoly := ringQ.NewPoly()
-	// delta := params.DefaultScale()
-	// delta.Value = *new(big.Float).Add(
-	// 	new(big.Float).Quo(
-	// 		new(big.Float).SetInt(modQ),
-	// 		new(big.Float).SetInt(modT),
-	// 	),
-	// 	new(big.Float).SetFloat64(0.5),
-	// )
-	// // delta := new(big.Int).ModInverse(modT, modQ).Uint64()
-	// encodeRingQMulDelta(m, params, delta.Uint64(), ptPoly, ct.MetaData.IsBatched)
 
 	pt := bgv.NewPlaintext(params, params.MaxLevel())
 	pt.MetaData = ct.MetaData
@@ -249,68 +226,8 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 	)
 	fmt.Println("vdec_lnp_tbox call completed.")
 	fmt.Printf("VDec prover time: %v\n", time.Since(start))
-	// defer C.FreeVdecProof(&proofResult) // Free the proof because passing reference of proof between methods doesn't work right now
 
 	C.lazer_fini()
-
-	// WARNING: proofResult contains dangling pointers as explained in the function comment.
-	// return proofResult
-}
-
-func encodeRingQMulDelta(values bgv.IntegerSlice, params bgv.Parameters, delta uint64, pQ ring.Poly, isBatched bool) (err error) {
-	ecd := bgv.NewEncoder(params)
-	ringQ := params.RingQ().AtLevel(pQ.Level())
-	ringT := params.RingT()
-
-	bufT := ringT.NewPoly()
-
-	if isBatched {
-		ecd.EncodeRingT(values, params.DefaultScale(), bufT)
-	} else {
-		fmt.Printf("pQ ringQ.Level(): %d\n", ringQ.Level())
-		N := ringT.N()
-		T := ringT.SubRings[0].Modulus
-		BRC := ringT.SubRings[0].BRedConstant
-
-		ptT := bufT.Coeffs[0]
-
-		var valLen int
-		switch values := values.(type) {
-		case []uint64:
-
-			if len(values) > N {
-				return fmt.Errorf("cannot Encode (TimeDomain): len(values)=%d > N=%d", len(values), N)
-			}
-
-			copy(ptT, values)
-			valLen = len(values)
-		case []int64:
-
-			if len(values) > N {
-				return fmt.Errorf("cannot Encode (TimeDomain: len(values)=%d > N=%d", len(values), N)
-			}
-
-			var sign, abs uint64
-			for i, c := range values {
-				sign = uint64(c) >> 63
-				abs = ring.BRedAdd(uint64(c*((int64(sign)^1)-int64(sign))), T, BRC)
-				ptT[i] = sign*(T-abs) | (sign^1)*abs
-			}
-
-			valLen = len(values)
-		}
-
-		for i := valLen; i < N; i++ {
-			ptT[i] = 0
-		}
-
-		fmt.Printf("delta: %v\n", delta)
-	}
-
-	ecd.RingT2Q(pQ.Level(), false, bufT, pQ)
-	ringQ.MulScalar(pQ, delta, pQ)
-
-	return nil
 }
 
 func GenerateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice, params bgv.Parameters) error {
@@ -319,30 +236,17 @@ func GenerateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext
 	modQ := ringQ.ModulusAtLevel[ct.LevelQ()]
 	modT := params.RingT().Modulus()
 
-	// Convert secret key to string
 	skCoeffsString := core.RingPolyToStringsCentered(skRingQ, *sk.Value.Q.CopyNew(), true, true)
-
-	// Convert ciphertext components to strings
-	// fmt.Printf("ct.MetaData: %v, %v\n", ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 	ct0String := core.RingPolyToStringsCentered(ringQ, *ct.Value[0].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
 	ct1String := core.RingPolyToStringsCentered(ringQ, *ct.Value[1].CopyNew(), ct.MetaData.IsMontgomery, ct.MetaData.IsNTT)
-
-	// ptPoly := ringQ.NewPoly()
-	// fmt.Printf("modQ: %v, modT: %v\n", modQ, modT)
-	delta := new(big.Int).ModInverse(modT, modQ).Uint64()
-	// encodeRingQMulDelta(m, params, delta, ptPoly, ct.MetaData.IsBatched)
-
-	fmt.Printf("modQ: %v, delta: %v\n", modQ, delta)
 
 	pt := bgv.NewPlaintext(params, params.MaxLevel())
 	pt.MetaData = ct.MetaData
 	bgv.NewEncoder(params).Encode(m, pt)
 	ptPoly := pt.Value
 
-	// Convert plaintext to string
 	ptString := core.RingPolyToStringsCentered(ringQ, ptPoly, false, false)
 
-	// Format the values for C header
 	formatForHeader := func(values []string) string {
 		var builder strings.Builder
 		for i, val := range values {
@@ -358,7 +262,7 @@ func GenerateHeaderFile(fileName string, sk *rlwe.SecretKey, ct *rlwe.Ciphertext
 
 	modQStr := strconv.FormatUint(modQ.Uint64(), 10)
 	modTStr := strconv.FormatUint(modT.Uint64(), 10)
-	// Create header content
+
 	headerContent := fmt.Sprintf(`#ifndef VDEC_CT_H
 #define VDEC_CT_H
 #include <stdint.h>
@@ -382,30 +286,5 @@ static const int64_t static_m_delta[] = {
 #endif /* VDEC_CT_H */
 `, modQStr, modTStr, formatForHeader(skCoeffsString), formatForHeader(ct0String), formatForHeader(ct1String), formatForHeader(ptString))
 
-	// Write to file
 	return os.WriteFile(fileName, []byte(headerContent), 0644)
 }
-
-// // CallVerifyVdecLnpTbox calls the C implementation of the vdec verifier.
-// // It takes the proof generated by CallVdecProver.
-// // WARNING: Assumes the pointers within the proof struct are still valid.
-// // Proper memory management across the CGo boundary is required for safe usage.
-// func CallVerifyVdecLnpTbox(proof *C.VdecProof) int {
-// 	// Need Rq to pass to the C function
-// 	rq := C.GetRqFromVdecParams1()
-// 	if rq == nil {
-// 		log.Fatal("CallVerifyVdecLnpTbox: Failed to get Rq from params1")
-// 	}
-// 	fmt.Printf("Passing Rq %p to verification\n", rq)
-
-// 	// Call the actual C verification function directly
-// 	result := C.verify_vdec_lnp_tbox(proof, rq)
-// 	return int(result)
-// }
-
-// // FreeProof calls the C function to free the memory allocated for the VdecProof struct.
-// func FreeProof(proof *C.VdecProof) {
-// 	if proof != nil {
-// 		C.FreeVdecProof(proof)
-// 	}
-// }

@@ -6,7 +6,7 @@ C_SUBDIR = $(VDEC_DIR)/c
 GO_SOURCE = main.go
 GO_EXE_NAME = vdec_test
 
-.PHONY: all build_c build_go run clean clean_c clean_go build
+.PHONY: all build_c build_go run clean clean_c clean_go build html
 
 # Default target: build the Go application
 all: build
@@ -33,7 +33,7 @@ build: build_go
 # Ensures the application is built before running.
 run: build
 	@echo "--- Running Go application ($(PWD)/$(GO_EXE_NAME)) ---"
-	LD_LIBRARY_PATH=$(PWD)/$(C_SUBDIR):$$LD_LIBRARY_PATH ./$(GO_EXE_NAME)
+	LD_LIBRARY_PATH=$(PWD)/$(C_SUBDIR):$(PWD)/$(C_SUBDIR)/lazer:$$LD_LIBRARY_PATH ./$(GO_EXE_NAME)
 
 # Clean C build artifacts
 clean_c:
@@ -47,4 +47,10 @@ clean_go:
 
 # Clean all build artifacts (both C and Go)
 clean: clean_c clean_go
-	@echo "--- All build artifacts cleaned ---" 
+	@echo "--- All build artifacts cleaned ---"
+
+lazer/src/lazer_static.o: $(LIBSOURCES) lazer/lazer.h $(FALCON_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(FALCON_DIR) -I. -Ilazer -c -o lazer/src/lazer_static.o lazer/src/lazer.c
+
+lazer/src/lazer_shared.o: $(LIBSOURCES) lazer/lazer.h $(FALCON_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(FALCON_DIR) -I. -Ilazer -c -fPIC -o lazer/src/lazer_shared.o lazer/src/lazer.c 

@@ -37,7 +37,6 @@ func TestBatchCiphertexts(t *testing.T) {
 			panic(err)
 		}
 
-		// Generate keys
 		kgen := rlwe.NewKeyGenerator(params)
 		sk, _ := kgen.GenKeyPairNew()
 
@@ -46,7 +45,6 @@ func TestBatchCiphertexts(t *testing.T) {
 			panic(err)
 		}
 
-		// Initialize the necessary objects
 		client := fhe.NewClientBFV(&ptField, params, sk)
 		evaluator := bgv.NewEvaluator(params, nil)
 
@@ -89,7 +87,6 @@ func TestBatchCiphertexts(t *testing.T) {
 			batchedCol[i] = core.NewElement(column[i])
 		}
 
-		// Assert that batchedCol and batchColCheck are equal
 		for i := range batchedCol {
 			if !batchColCheck[i].Equal(batchedCol[i]) {
 				t.Fatalf("Matrices differ at [%d]: expected %v, got %v", i, batchColCheck[i], batchedCol[i])
