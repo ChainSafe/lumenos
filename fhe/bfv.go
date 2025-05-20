@@ -132,19 +132,32 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 
 	// --- Parameter Generation based on Heuristics ---
 
+	plaintextModulusBits := bits.Len64(plaintextModulus)
+	var bufferLevels int
+
+	fmt.Println("plaintextModulusBits", plaintextModulusBits)
+
+	if plaintextModulusBits > 45 { // Large T (e.g., >~45-50 bits)
+		bufferLevels = 0
+	} else { // Small T (e.g., <= 30 bits)
+		bufferLevels = -2
+	}
+
 	// Calculate k = log2(size) efficiently using bit manipulation
-	k := bits.TrailingZeros(uint(nttSize))
+	k := bits.TrailingZeros(uint(nttSize)) + bufferLevels
 
 	// Determine LogQ length: k levels for computation + 1 buffer level = k+1
 	// The formula k+1 works directly for k=1 (nttSize=2) as well.
 	numQPrimes := k
 
+	fmt.Println("numQPrimes", numQPrimes)
+
 	// Generate LogQ slice: Use [60, 59, 59, ...] pattern
 	logQ := make([]int, numQPrimes)
 	if numQPrimes > 0 {
-		logQ[0] = 60 // First prime largest
+		logQ[0] = 58 // First prime largest
 		for i := 1; i < numQPrimes; i++ {
-			logQ[i] = 55 // Subsequent primes slightly smaller
+			logQ[i] = 56 // Subsequent primes slightly smaller
 		}
 	}
 

@@ -64,8 +64,12 @@ func NewLigeroCommitter(securityBits float64, rows int, cols int, rhoInv int) (*
 	}, nil
 }
 
-func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV) (*LigeroProver, []byte, error) {
-	encoded, err := Encode(matrix, c.Rows, c.RhoInv, backend)
+func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV, ctx *core.Span) (*LigeroProver, []byte, error) {
+	encoded, err := func() ([]*rlwe.Ciphertext, error) {
+		span := core.StartSpan("Encode", ctx)
+		defer span.End()
+		return Encode(matrix, c.Rows, c.RhoInv, backend)
+	}()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -98,12 +102,13 @@ type EncryptedProof struct {
 	MerklePaths []core.MerklePath
 }
 
-func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript *core.Transcript) (*EncryptedProof, error) {
+func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript *core.Transcript, ctx *core.Span) (*EncryptedProof, error) {
 	cols := c.Committer.Cols
 	rows := c.Committer.Rows
 
 	transcript.AppendBytes("root", c.Tree.MerkleRoot())
 
+	// Encode r vector
 	r := make([]uint64, rows)
 	transcript.SampleUints("r", r)
 	rPt := bgv.NewPlaintext(backend.params, backend.params.MaxLevel())
@@ -111,23 +116,28 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 		return nil, err
 	}
 
+	// Matrix R operations
 	matR := make([]*rlwe.Ciphertext, len(c.Matrix))
+	matrixRSpan := core.StartSpan("InnerProduct(Matrix, r)", ctx)
 	for i := range c.Matrix {
 		colR, err := backend.MulNew(c.Matrix[i], rPt)
 		if err != nil {
+			matrixRSpan.End()
 			return nil, err
 		}
 
 		if err := backend.InnerSum(colR, 1, c.Committer.Rows, colR); err != nil {
+			matrixRSpan.End()
 			return nil, err
 		}
 
 		matR[i] = colR
 	}
+	matrixRSpan.End()
 
 	transcript.AppendField("point", point)
 
-	// Generate vector `b = [1, z^m, z^(2m), ..., z^((m-1)m)]`
+	// Generate vector b
 	b := make([]uint64, rows)
 	zPow := backend.Field().Pow(uint64(cols), point)
 	powB := core.One()
@@ -141,29 +151,34 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 		return nil, err
 	}
 
+	// Matrix Z operations
 	matZ := make([]*rlwe.Ciphertext, len(c.Matrix))
+	matrixZSpan := core.StartSpan("InnerProduct(Matrix, b)", ctx)
 	for i := range c.Matrix {
 		colZ, err := backend.MulNew(c.Matrix[i], bPt)
 		if err != nil {
+			matrixZSpan.End()
 			return nil, err
 		}
 
 		if err := backend.InnerSum(colZ, 1, c.Committer.Rows, colZ); err != nil {
+			matrixZSpan.End()
 			return nil, err
 		}
 
 		matZ[i] = colZ
 	}
+	matrixZSpan.End()
 
+	// Query operations
+	queriedCols := make([]*rlwe.Ciphertext, c.Committer.Queries)
+	merklePaths := make([]core.MerklePath, c.Committer.Queries)
 	extCols := c.Committer.Cols * c.Committer.RhoInv
 	queryIndices := sampleQueryIndices(transcript, c.Committer.Queries, extCols)
 
-	queriedCols := make([]*rlwe.Ciphertext, c.Committer.Queries)
-	merklePaths := make([]core.MerklePath, c.Committer.Queries)
-
 	for i, queryColIdx := range queryIndices {
-		var err error
 		queriedCols[i] = c.EncodedMatrix[queryColIdx]
+		var err error
 		merklePaths[i], err = c.Tree.GetMerklePath(uint(queryColIdx))
 		if err != nil {
 			return nil, err
@@ -191,10 +206,11 @@ type Proof struct {
 	MerklePaths []core.MerklePath
 }
 
-func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool) (*Proof, error) {
+func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.Span) (*Proof, error) {
 	rows := p.Metadata.Rows
 
 	// Decrypt queried columns
+	span := core.StartSpan("Decrypt queried columns", ctx)
 	queriedCols := make([][]*core.Element, len(p.QueriedCols))
 
 	for j, col := range p.QueriedCols {
@@ -217,19 +233,22 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool) (*Proof, er
 			Values: queriedCols[i],
 		}
 	}
-
-	println("Number of queried columns:", len(queriedColsPairs))
+	span.End()
 
 	if verifiable {
+		span = core.StartSpan("Verifiable decrypt", ctx, "Verifiable decrypt...")
 		transcript := core.NewTranscript("vdec")
 
-		err := vdec.ProveBfvDecBatched(queriedColsPairs, client.SecretKey(), client.Evaluator, client.Field(), transcript)
+		err := vdec.ProveBfvDecBatched(queriedColsPairs, client.SecretKey(), client.Evaluator, client.Field(), transcript, span)
 		if err != nil {
+			span.End()
 			return nil, err
 		}
+		span.End()
 	}
 
 	// Decrypt row inner products
+	span = core.StartSpan("Decrypt row inner products", ctx)
 	matR := make([]*core.Element, len(p.MatR))
 	for i, colR := range p.MatR {
 		pt := client.DecryptNew(colR) // TODO: can descrypt just first slot?
@@ -249,7 +268,7 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool) (*Proof, er
 		}
 		matZ[i] = core.NewElement(column[0])
 	}
-
+	span.End()
 	proof := &Proof{
 		Metadata:    p.Metadata,
 		Root:        p.Root,
@@ -308,6 +327,7 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientB
 		}
 
 		if core.InnerProduct(p.QueriedCols[i].Values, r, client.Field()).NotEqual(encodedMatR[queryColIdx]) {
+			fmt.Println("well-formedness R check failed for column expected", encodedMatR[queryColIdx], "got", core.InnerProduct(p.QueriedCols[i].Values, r, client.Field()))
 			return fmt.Errorf("well-formedness R check failed for column %d", queryColIdx)
 		}
 

@@ -32,7 +32,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 	"unsafe"
 
 	"github.com/nulltea/lumenos/core"
@@ -49,19 +48,19 @@ type ColumnInstance struct {
 	Values []*core.Element
 }
 
-func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, backend *bgv.Evaluator, field *core.PrimeField, transcript *core.Transcript) error {
+func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, backend *bgv.Evaluator, field *core.PrimeField, transcript *core.Transcript, parentSpan *core.Span) error {
 	cols := len(instance)
 	matrixColMajor := make([][]*core.Element, cols)
 	for j := range matrixColMajor {
 		matrixColMajor[j] = instance[j].Values
 	}
 
-	start := time.Now()
+	span := core.StartSpan("Batching decrypted columns", parentSpan)
 	batchedCol, alphas, err := BatchColumns(matrixColMajor, field, transcript)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Batching decrypted columns took %s\n", time.Since(start))
+	span.End()
 
 	m := make([]uint64, len(batchedCol))
 	for i := range batchedCol {
@@ -73,12 +72,13 @@ func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, bac
 		cts[i] = instance[i].Ct
 	}
 
-	start = time.Now()
+	span = core.StartSpan("Batching ciphertexts", parentSpan)
 	batchCt, err := BatchCiphertexts(cts, alphas, backend)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Batching ciphertexts evaluation took %s\n", time.Since(start))
+	span.End()
+
 	seed := []byte{2} // TODO: use transcript random seed
 
 	// TODO: ring and modulus switch
@@ -87,18 +87,17 @@ func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, bac
 		backend.Rescale(batchCt, batchCt)
 	}
 	if batchCt.LevelQ() < levelWas {
-		fmt.Printf("rescaled batch ciphertext level Q (%d) -> %d\n", levelWas, batchCt.LevelQ())
+		// fmt.Printf("rescaled batch ciphertext level Q (%d) -> %d\n", levelWas, batchCt.LevelQ())
 	}
 
-	return CallVdecProver(seed, *backend.GetParameters(), witness, batchCt, m)
+	return CallVdecProver(seed, *backend.GetParameters(), witness, batchCt, m, parentSpan)
 }
 
 // CallVdecProver calls the C implementation of the vdec prover.
-func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice) error {
+func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice, parentSpan *core.Span) error {
 	C.lazer_init()
-	fmt.Println("Lazer.c initialized.")
 
-	start := time.Now()
+	span := core.StartSpan("Witness generation", parentSpan)
 
 	// Prepare inputs
 	skRingQ := params.RingQ().AtLevel(sk.LevelQ())
@@ -123,7 +122,7 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 	if proofDegree == 0 {
 		return fmt.Errorf("failed to get proof degree (Rq->d)")
 	}
-	fmt.Printf("Proof degree (Rq->d): %d\n", proofDegree)
+	// fmt.Printf("Proof degree (Rq->d): %d\n", proofDegree)
 
 	var seedChar [32]C.uint8_t
 	for i := range seed {
@@ -209,11 +208,11 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 			C.SetPolyvecPolyCoeffs(mDeltaVec, C.uint(polyIndexInCVec), (*C.int64_t)(unsafe.Pointer(&polyCoeffsSlice[0])), C.uint(proofDegree))
 		}
 	}
-	fmt.Printf("Witness generation took %s\n", time.Since(start))
+	span.End()
 
 	// Prove
-	fmt.Println("Calling vdec_lnp_tbox...")
-	start = time.Now()
+	// fmt.Println("Calling vdec_lnp_tbox...")
+	span = core.StartSpan("Proof generation", parentSpan)
 	result := C.ProveVdecLnpTbox(
 		&seedChar[0],
 		skVec,
@@ -227,8 +226,7 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 	if result == 0 {
 		return fmt.Errorf("generated proof is not valid")
 	}
-	fmt.Println("vdec_lnp_tbox call completed.")
-	fmt.Printf("VDec prover time: %v\n", time.Since(start))
+	span.End()
 
 	C.lazer_fini()
 

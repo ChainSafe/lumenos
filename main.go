@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
@@ -13,15 +12,13 @@ import (
 )
 
 const (
-	Rows    = 2048
-	Cols    = 1024
-	Modulus = 144115188075593729
+	Rows    = 512
+	Cols    = 128
+	Modulus = 0x3ee0001
 	RhoInv  = 2
 )
 
 func main() {
-	start := time.Now()
-
 	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(Cols, 13, Modulus)
 	if err != nil {
 		panic(err)
@@ -31,13 +28,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Parameter generation took: %v\n", time.Since(start))
 
 	// Generate keys
-	start = time.Now()
 	kgen := rlwe.NewKeyGenerator(params)
 	sk, pk := kgen.GenKeyPairNew()
-	fmt.Printf("Key generation took: %v\n", time.Since(start))
 
 	// Relinearization Key
 	rlk := kgen.GenRelinearizationKeyNew(sk)
@@ -56,7 +50,6 @@ func main() {
 	s := fhe.NewBackendBFV(&ptField, params, pk, evk)
 	c := fhe.NewClientBFV(&ptField, params, sk)
 
-	start = time.Now()
 	matrix, batchedCols, err := core.RandomMatrixRowMajor(Rows, Cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
@@ -67,9 +60,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Matrix generation and encoding took: %v\n", time.Since(start))
 	// Encrypt the batched columns
-	start = time.Now()
 	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
 	for i, plaintext := range batchedCols {
 		ciphertext, err := s.EncryptNew(plaintext)
@@ -78,43 +69,47 @@ func main() {
 		}
 		ciphertexts[i] = ciphertext
 	}
-	fmt.Printf("Encryption took: %v\n", time.Since(start))
 
 	ligero, err := fhe.NewLigeroCommitter(128, Rows, Cols, RhoInv)
 	if err != nil {
 		panic(err)
 	}
-	ligero.Queries = 1 // TODO: fix for more than 1 query
+	// ligero.Queries = 1 // TODO: fix for more than 1 query
 
-	comm, _, err := ligero.Commit(ciphertexts, s)
+	span := core.StartSpan("Commit FHE evaluation", nil, "Commit FHE evaluation...")
+	comm, _, err := ligero.Commit(ciphertexts, s, span)
 	if err != nil {
 		panic(err)
 	}
+	span.End()
 
 	z := core.NewElement(1)
 
-	start = time.Now()
 	transcript := core.NewTranscript("test")
-	encryptedProof, err := comm.Prove(z, s, transcript)
+	span = core.StartSpan("Prove FHE evaluation", nil, "Prove FHE evaluation...")
+	encryptedProof, err := comm.Prove(z, s, transcript, span)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("FHE evaluation took: %v\n", time.Since(start))
+	span.End()
 
 	verifierTranscript := core.NewTranscript("test")
 
 	poly := core.NewDensePolyFromMatrix(matrix)
 	value := poly.Evaluate(s.Field(), z)
 
-	proof, err := encryptedProof.Decrypt(c, true)
+	span = core.StartSpan("Decrypt proof", nil, "Decrypt proof...")
+	proof, err := encryptedProof.Decrypt(c, true, span)
 	if err != nil {
 		panic(err)
 	}
+	span.End()
 
+	span = core.StartSpan("Verify proof", nil)
 	err = proof.Verify(z, value, c, verifierTranscript)
 	if err != nil {
 		panic(err)
 	}
-
+	span.End()
 	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
 }
