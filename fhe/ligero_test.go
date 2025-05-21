@@ -15,6 +15,7 @@ const (
 	cols    = 1024
 	Modulus = 144115188075593729
 	rhoInv  = 2
+	// Modulus = 0x3ee0001
 	// Modulus = 288230376150630401
 	// Modulus = 144115188075593729 // allows LogN >= 15
 )

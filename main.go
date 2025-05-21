@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	Rows    = 512
-	Cols    = 128
-	Modulus = 0x3ee0001
+	Rows    = 2048
+	Cols    = 1024
+	Modulus = 144115188075593729
 	RhoInv  = 2
 )
 
@@ -74,7 +74,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// ligero.Queries = 1 // TODO: fix for more than 1 query
 
 	span := core.StartSpan("Commit FHE evaluation", nil, "Commit FHE evaluation...")
 	comm, _, err := ligero.Commit(ciphertexts, s, span)
