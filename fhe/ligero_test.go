@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	rows    = 256
-	cols    = 128
-	Modulus = 0x3ee0001
+	rows    = 2048
+	cols    = 1024
+	Modulus = 144115188075593729
 	rhoInv  = 2
+	LogN    = 12
 	// Modulus = 0x3ee0001
 	// Modulus = 288230376150630401
 	// Modulus = 144115188075593729 // allows LogN >= 15
@@ -33,7 +34,7 @@ func TestLigeroRLC(t *testing.T) {
 }
 
 func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV, *testing.T, bool), vdec bool) {
-	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(cols, 13, Modulus)
+	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(cols, LogN, Modulus)
 	if err != nil {
 		panic(err)
 	}

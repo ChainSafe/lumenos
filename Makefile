@@ -6,10 +6,20 @@ C_SUBDIR = $(VDEC_DIR)/c
 GO_SOURCE = main.go
 GO_EXE_NAME = vdec_test
 
-.PHONY: all build_c build_go run clean clean_c clean_go build html
+.PHONY: all build_c build_go run clean clean_c clean_go build html server client
 
 # Default target: build the Go application
 all: build
+
+# Build and run server
+server:
+	@echo "--- Building and running FHE server ---"
+	go run cmd/server/main.go -rows 2048 -cols 1024 -logN 13
+
+# Build and run client
+client:
+	@echo "--- Building and running FHE client ---"
+	go run cmd/client/main.go -rows 2048 -cols 1024 -logN 13
 
 # Build all C dependencies
 # This relies on the Makefile in $(C_SUBDIR) (vdec/c/Makefile)
@@ -26,7 +36,7 @@ build_go: build_c
 	@echo "Go executable created: $(PWD)/$(GO_EXE_NAME)"
 
 # Target to explicitly build the Go application (same as build_go, common name)
-build: build_go
+build: build_c
 	@echo "Run:\nexport LD_LIBRARY_PATH=$(PWD)/$(C_SUBDIR)"
 
 # Run the Go application

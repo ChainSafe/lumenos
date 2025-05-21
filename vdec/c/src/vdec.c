@@ -199,8 +199,8 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   const unsigned int nbounds = 1; // TODO: number of u vectors we want to proof are small - will change to 1
   const unsigned int nprime = fhe_degree / d * CT_COUNT;
 
-  printf("ajtai size: %d, bdlop size: %d, lext:%d, lambda:%d\n", m1, l, abdlop->lext, lambda);
-  printf("quad-many l: %d, quad-many lext:%d\n\n", params->quad_many->l, params->quad_many->lext);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "ajtai size: %d, bdlop size: %d, lext:%d, lambda:%d\n", m1, l, abdlop->lext, lambda);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "quad-many l: %d, quad-many lext:%d\n\n", params->quad_many->l, params->quad_many->lext);
 
   // #region Committing to witness
 
@@ -241,13 +241,13 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   // printf("start u_v build\n");
   polyvec_t c0_m;
   polyvec_alloc(c0_m, Rq, ct0->nelems);
-  printf("\nct0->nelems: %d", ct0->nelems);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\nct0->nelems: %d", ct0->nelems);
   polyvec_sub(c0_m, ct0, m_delta, 0);
-  printf("\nc0_m->nelems: %d", c0_m->nelems);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\nc0_m->nelems: %d", c0_m->nelems);
 
   // generate intvec with coeffs of ct0 - delta_m
   INTVEC_T(sum_tmp_vec, d * c0_m->nelems, Rq->q->nlimbs);
-  printf("\nsum_tmp_vec->nelems: %d\n", sum_tmp_vec->nelems);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\nsum_tmp_vec->nelems: %d\n", sum_tmp_vec->nelems);
   intvec_ptr sum_tmp = &sum_tmp_vec;
   for (i = 0; i < c0_m->nelems; i++)
   {
@@ -267,8 +267,8 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   poly_ptr first_ct1_ptr = polyvec_get_elem(ct1, 0);
   size_t n = fhe_degree / d;
   size_t r = CT_COUNT;
-  printf("\nn: %d", n);
-  printf("\nr (CT_COUNT): %d\n", CT_COUNT);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\nn: %d", n);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\nr (CT_COUNT): %d\n", CT_COUNT);
 
   // intvec_ptr rot_s;
   polymat_t Ds;
@@ -329,7 +329,7 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
 
   intvec_add(u_v, w_sk, sum_tmp);
 
-  printf("finished u_v build\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "finished u_v build\n");
 
   /************************************************************************/
   /*                                                                      */
@@ -513,7 +513,7 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
       DEBUG_PRINTF(DEBUG_PRINT_REJ, "%s", "reject u_v");
       continue;
     }
-    printf("did rejection sampling for z_v\n");
+    DEBUG_PRINTF(DEBUG_LEVEL >= 2, "did rejection sampling for z_v\n");
 
     break;
   }
@@ -541,7 +541,7 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   polyvec_t subv2, subv_auto, tg, s2_;
   polymat_t Bextprime;
 
-  printf("start building statements for next parts of the proof\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "start building statements for next parts of the proof\n");
   polyvec_free(s);                                       // freeing this because this is used in the original proof from quad_eval_test. Later we can remove this
   polyvec_alloc(s, Rq, 2 * (m1 + params->quad_many->l)); // double check this l (from quad-many and not quad)
 
@@ -738,18 +738,18 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   /* accumulate schwarz-zippel .. */
   // #region sz accumulate
 
-  printf("accumulating beta...\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "accumulating beta...\n");
   __schwartz_zippel_accumulate_beta(
       R2prime_sz, r1prime_sz, r0prime_sz, R2prime_sz2, r1prime_sz2,
       r0prime_sz2, R2t, r1t, r0t, hashp, 0, params, nprime);
 
-  printf("accumulating z4...\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "accumulating z4...\n");
   __schwartz_zippel_accumulate_z(R2prime_sz, r1prime_sz, r0prime_sz,
                                  R2prime_sz2, r1prime_sz2, r0prime_sz2,
                                  R2t, r1t, r0t, Ds, Dm, sum_tmp, oDs, oDm, zv,
                                  hash0, d - 1, params, nprime);
 
-  printf("schwartz zippel auto...\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "schwartz zippel auto...\n");
   for (i = 0; i < lambda / 2; i++)
   {
     __schwartz_zippel_auto(R2prime_sz[i], r1prime_sz[i], r0prime_sz[i],
@@ -791,7 +791,7 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   lnp_quad_many_prove(hashp, tB, c, z1, z21, hint, s1, m, s2, tA2, A1, A2prime,
                       Bprime, R2prime_sz, r1prime_sz, lambda / 2 + 1,
                       seed_cont2, params->quad_many);
-  printf("finished proof generation\n\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "finished proof generation\n\n");
 
   /************************************************************************/
   /*                                                                      */
@@ -804,7 +804,7 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   polyvec_linf(linf, zv);
   int zv_valid = (int_le(linf, params1_Bz4));
 
-  fprintf(stderr, "--> zv bound verification result: %d\n", zv_valid);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 1, "--> zv bound verification result: %d\n", zv_valid);
 
   // int b1 = 1, b2 = 1;
   int h_our_valid1 = 1;
@@ -816,18 +816,18 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
     if (int_eqzero(coeff) != 1)
     {
       h_our_valid1 = 0;
-      printf("coeff 0 is ");
+      DEBUG_PRINTF(DEBUG_LEVEL >= 2, "coeff 0 is ");
       int_dump(coeff);
     }
     coeff = poly_get_coeff(poly, d / 2);
     if (int_eqzero(coeff) != 1)
     {
       h_our_valid2 = 0;
-      printf("coeff d/2 is ");
+      DEBUG_PRINTF(DEBUG_LEVEL >= 2, "coeff d/2 is ");
       int_dump(coeff);
     }
   }
-  fprintf(stderr, "--> h_our coeff verification result: %d, %d\n", h_our_valid1, h_our_valid2);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 1, "--> h_our coeff verification result: %d, %d\n", h_our_valid1, h_our_valid2);
 
   /* expect successful verification */
 
@@ -835,7 +835,7 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
                            Bprime, R2prime_sz, r1prime_sz, r0prime_sz,
                            lambda / 2 + 1, params->quad_many);
 
-  fprintf(stderr, "--> quad_many verification result: %d\n", quad_many_valid);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 1, "--> quad_many verification result: %d\n", quad_many_valid);
 
   /************************************************************************/
   /*                                                                      */
@@ -866,39 +866,39 @@ int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
 void print_uint8_array(const char *description, const uint8_t *array, size_t length)
 {
   // Print the description
-  printf("\n%s = ", description);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\n%s = ", description);
 
   // Loop through the array and print each value
   for (size_t i = 0; i < length; i++)
   {
-    printf("%u ", array[i]);
+    DEBUG_PRINTF(DEBUG_LEVEL >= 2, "%u ", array[i]);
   }
 
   // Print a new line at the end
-  printf("\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\n");
 }
 
 // Function to print an array of int64_t values with a description
 void print_int64_array(const char *description, const int64_t *array, size_t length)
 {
   // Print the description
-  printf("\n%s: ", description);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\n%s: ", description);
 
   // Loop through the array and print each value
   for (size_t i = 0; i < length; i++)
   {
-    printf("%lld ", (long long)array[i]);
+    DEBUG_PRINTF(DEBUG_LEVEL >= 2, "%lld ", (long long)array[i]);
   }
 
   // Print a new line at the end
-  printf("\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\n");
 }
 
 // Function to print an intvec_t values with a description
 void print_polyvec_element(const char *description, const polyvec_t vec, size_t pos, size_t length)
 {
   // Print the description
-  printf("\n%s: ", description);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\n%s: ", description);
 
   // Loop through the array and print each value
   poly_ptr poly;
@@ -907,11 +907,11 @@ void print_polyvec_element(const char *description, const polyvec_t vec, size_t 
   coeffs = poly_get_coeffvec(poly);
   for (size_t i = 0; i < length; i++)
   {
-    printf("%lld ", (long long)intvec_get_elem_i64(coeffs, i));
+    DEBUG_PRINTF(DEBUG_LEVEL >= 2, "%lld ", (long long)intvec_get_elem_i64(coeffs, i));
   }
 
   // Print a new line at the end
-  printf("\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "\n");
 }
 
 void intvec_lrot_pos(intvec_t r, const intvec_t a, unsigned int n)
@@ -1593,7 +1593,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
     }
   }
 
-  printf("  - computing vR_\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "  - computing vR_\n");
   // vR_ is same as vR but with correct number of limbs (after mod q)
   _MAT_FOREACH_ELEM(vR, i, j)
   {
@@ -1602,7 +1602,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
     int_mod(coeff2, coeff1, q);
   }
 
-  printf("  - computing vRu, vR_cols=%d, u_rows=%d\n", vR_->ncols, u_->nelems);
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "  - computing vRu, vR_cols=%d, u_rows=%d\n", vR_->ncols, u_->nelems);
   // generates u_, intvec with coefficients of elements in u.
   // vRu is intvec of lambda entries, vRu = vR_ * u_
   if (u_ != NULL)
@@ -1616,7 +1616,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
   }
 
   // #region vRDs
-  printf("  - computing o(RDs)\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "  - computing o(RDs)\n");
   polymat_t oRDs;
   polymat_alloc(oRDs, Rq, RDs->nrows, RDs->ncols);
   polymat_auto(oRDs, RDs);
@@ -1639,7 +1639,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
     }
   }
 
-  printf("  - building vRDm (old version)\n");
+  DEBUG_PRINTF(DEBUG_LEVEL >= 2, "  - building vRDm (old version)\n");
   if (l > 0 && Dm != NULL)
   {
     for (k = 0; k < lambda; k++)
@@ -1659,7 +1659,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
         }
       }
     }
-    printf("  - computing o(vRDm)\n");
+    DEBUG_PRINTF(DEBUG_LEVEL >= 2, "  - computing o(vRDm)\n");
     polymat_auto(vRDm, vRDm);
   }
 

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
+	"runtime"
+	"sync"
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/vdec"
@@ -119,27 +121,6 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 		return nil, err
 	}
 
-	// Matrix R operations
-	matR := make([]*rlwe.Ciphertext, len(c.Matrix))
-	matrixRSpan := core.StartSpan("InnerProduct(Matrix, r)", ctx)
-	for i := range c.Matrix {
-		colR, err := backend.MulNew(c.Matrix[i], rPt)
-		if err != nil {
-			matrixRSpan.End()
-			return nil, err
-		}
-
-		if err := backend.InnerSum(colR, 1, c.Committer.Rows, colR); err != nil {
-			matrixRSpan.End()
-			return nil, err
-		}
-
-		matR[i] = colR
-	}
-	matrixRSpan.End()
-
-	transcript.AppendField("point", point)
-
 	// Generate vector b
 	b := make([]uint64, rows)
 	zPow := backend.Field().Pow(uint64(cols), point)
@@ -154,24 +135,43 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 		return nil, err
 	}
 
-	// Matrix Z operations
-	matZ := make([]*rlwe.Ciphertext, len(c.Matrix))
+	// Run Matrix R and Matrix Z operations concurrently
+	matrixRSpan := core.StartSpan("InnerProduct(Matrix, r)", ctx)
 	matrixZSpan := core.StartSpan("InnerProduct(Matrix, b)", ctx)
-	for i := range c.Matrix {
-		colZ, err := backend.MulNew(c.Matrix[i], bPt)
-		if err != nil {
-			matrixZSpan.End()
-			return nil, err
-		}
 
-		if err := backend.InnerSum(colZ, 1, c.Committer.Rows, colZ); err != nil {
-			matrixZSpan.End()
-			return nil, err
-		}
+	matRChan := make(chan matrixOperationResult, 1)
+	matZChan := make(chan matrixOperationResult, 1)
 
-		matZ[i] = colZ
+	// Matrix R operations
+	go func() {
+		result := matrixInnerSumEval(c.Matrix, rPt, c.Committer.Rows, backend.CopyNew(), matrixRSpan)
+		matrixRSpan.End()
+		matRChan <- result
+	}()
+
+	// Matrix Z operations
+	go func() {
+		result := matrixInnerSumEval(c.Matrix, bPt, c.Committer.Rows, backend.CopyNew(), matrixZSpan)
+		matrixZSpan.End()
+		matZChan <- result
+	}()
+
+	// Collect results
+	matRResult := <-matRChan
+	if matRResult.err != nil {
+		matrixRSpan.End()
+		return nil, matRResult.err
 	}
-	matrixZSpan.End()
+
+	matZResult := <-matZChan
+	if matZResult.err != nil {
+		return nil, matZResult.err
+	}
+
+	matR := matRResult.matrix
+	matZ := matZResult.matrix
+
+	transcript.AppendField("point", point)
 
 	// Query operations
 	queriedCols := make([]*rlwe.Ciphertext, c.Committer.Queries)
@@ -198,6 +198,71 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 	}
 
 	return proof, nil
+}
+
+// matrixOperationResult holds the result of a matrix operation
+type matrixOperationResult struct {
+	matrix []*rlwe.Ciphertext
+	err    error
+}
+
+func matrixInnerSumEval(matrix []*rlwe.Ciphertext, plaintext *rlwe.Plaintext, rows int, backend *ServerBFV, span *core.Span) matrixOperationResult {
+	result := make([]*rlwe.Ciphertext, len(matrix))
+	type matrixElementResult struct {
+		index int
+		col   *rlwe.Ciphertext
+		err   error
+	}
+	resultChan := make(chan matrixElementResult, len(matrix))
+
+	numWorkers := determineOptimalWorkers(len(matrix))
+	workChan := make(chan int, len(matrix))
+
+	// Start workers
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		backend := backend.CopyNew()
+		go func() {
+			defer wg.Done()
+			for i := range workChan {
+				col, err := backend.MulNew(matrix[i], plaintext)
+				if err != nil {
+					resultChan <- matrixElementResult{index: i, err: err}
+					continue
+				}
+
+				if err := backend.InnerSum(col, 1, rows, col); err != nil {
+					resultChan <- matrixElementResult{index: i, err: err}
+					continue
+				}
+
+				resultChan <- matrixElementResult{index: i, col: col}
+			}
+		}()
+	}
+
+	for i := range matrix {
+		workChan <- i
+	}
+	close(workChan)
+
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	for res := range resultChan {
+		if res.err != nil {
+			span.End()
+			return matrixOperationResult{nil, res.err}
+		}
+		result[res.index] = res.col
+	}
+
+	// TODO: aggregate multiplication counts
+
+	return matrixOperationResult{result, nil}
 }
 
 type Proof struct {
@@ -250,38 +315,116 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 		span.End()
 	}
 
-	// Decrypt row inner products
+	// Decrypt row inner products concurrently
 	span = core.StartSpan("Decrypt row inner products", ctx)
-	matR := make([]*core.Element, len(p.MatR))
-	for i, colR := range p.MatR {
-		pt := client.DecryptNew(colR) // TODO: can descrypt just first slot?
-		column := make([]uint64, rows)
-		if err := client.Decode(pt, column); err != nil {
-			return nil, err
-		}
-		matR[i] = core.NewElement(column[0])
+
+	// Create channels for concurrent decryption
+	matRChan := make(chan struct {
+		matR []*core.Element
+		err  error
+	}, 1)
+	matZChan := make(chan struct {
+		matZ []*core.Element
+		err  error
+	}, 1)
+
+	// Start concurrent decryption of MatR
+	go func() {
+		matR, err := decryptMatrixInnerProduct(p.MatR, client, rows, span)
+		matRChan <- struct {
+			matR []*core.Element
+			err  error
+		}{matR, err}
+	}()
+
+	// Start concurrent decryption of MatZ
+	go func() {
+		matZ, err := decryptMatrixInnerProduct(p.MatZ, client, rows, span)
+		matZChan <- struct {
+			matZ []*core.Element
+			err  error
+		}{matZ, err}
+	}()
+
+	// Collect results
+	matRResult := <-matRChan
+	if matRResult.err != nil {
+		span.End()
+		return nil, matRResult.err
 	}
 
-	matZ := make([]*core.Element, len(p.MatZ))
-	for i, colZ := range p.MatZ {
-		pt := client.DecryptNew(colZ) // TODO: can descrypt just first slot?
-		column := make([]uint64, rows)
-		if err := client.Decode(pt, column); err != nil {
-			return nil, err
-		}
-		matZ[i] = core.NewElement(column[0])
+	matZResult := <-matZChan
+	if matZResult.err != nil {
+		span.End()
+		return nil, matZResult.err
 	}
+
 	span.End()
+
 	proof := &Proof{
 		Metadata:    p.Metadata,
 		Root:        p.Root,
-		MatR:        matR,
-		MatZ:        matZ,
+		MatR:        matRResult.matR,
+		MatZ:        matZResult.matZ,
 		QueriedCols: queriedColsPairs,
 		MerklePaths: p.MerklePaths,
 	}
 
 	return proof, nil
+}
+
+func decryptMatrixInnerProduct(matrix []*rlwe.Ciphertext, client *ClientBFV, rows int, span *core.Span) ([]*core.Element, error) {
+	result := make([]*core.Element, len(matrix))
+	type decryptionResult struct {
+		index int
+		value *core.Element
+		err   error
+	}
+	resultChan := make(chan decryptionResult, len(matrix))
+
+	numWorkers := determineOptimalWorkers(len(matrix))
+	workChan := make(chan int, len(matrix))
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		client := client.CopyNew()
+		go func() {
+			defer wg.Done()
+			for i := range workChan {
+				pt := client.DecryptNew(matrix[i]) // TODO: can descrypt just first slot?
+				column := make([]uint64, rows)
+				if err := client.Decode(pt, column); err != nil {
+					resultChan <- decryptionResult{index: i, err: err}
+					continue
+				}
+				resultChan <- decryptionResult{
+					index: i,
+					value: core.NewElement(column[0]),
+				}
+			}
+		}()
+	}
+
+	for i := range matrix {
+		workChan <- i
+	}
+	close(workChan)
+
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	for res := range resultChan {
+		if res.err != nil {
+			span.End()
+			return nil, res.err
+		}
+		result[res.index] = res.value
+	}
+
+	return result, nil
 }
 
 func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientBFV, transcript *core.Transcript) error {
@@ -474,4 +617,23 @@ func (p *LigeroMetadata) ReadFrom(buf *bytes.Buffer) error {
 	p.RhoInv = int(rhoInv)
 	p.Queries = int(queries)
 	return nil
+}
+
+// determineOptimalWorkers calculates the optimal number of workers based on system resources and workload
+func determineOptimalWorkers(matrixSize int) int {
+	numCPU := runtime.NumCPU()
+
+	// For small matrices, use fewer workers to avoid overhead
+	if matrixSize < numCPU {
+		return matrixSize
+	}
+
+	// For medium matrices, use number of CPU cores
+	if matrixSize <= numCPU*4 {
+		return numCPU
+	}
+
+	// For large matrices, use more workers but cap at 2x CPU cores
+	// to avoid excessive context switching
+	return min(numCPU*2, matrixSize)
 }

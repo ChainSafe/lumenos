@@ -37,7 +37,8 @@ func StartSpan(name string, parent *Span, message ...string) *Span {
 
 	// Print start message for root spans
 	if len(message) > 0 {
-		fmt.Printf("%s\n", strings.Join(message, " "))
+		indent := strings.Repeat("  ", depth)
+		fmt.Printf("%s%s\n", indent, strings.Join(message, " "))
 	}
 
 	return span
