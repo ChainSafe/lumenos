@@ -147,7 +147,7 @@ func main() {
 	fmt.Printf("Received encrypted proof for P(x=%d)=%d\n", *point, value)
 
 	span := core.StartSpan("Decrypt proof", nil, "Decrypting proof...")
-	proof, err := encryptedProof.Decrypt(clientBFV, false, span)
+	proof, err := encryptedProof.Decrypt(clientBFV, true, span)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to decrypt proof: %v", err))
 	}
