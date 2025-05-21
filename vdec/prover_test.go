@@ -73,7 +73,9 @@ func testVdecSimple(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.Cl
 	if err := client.Decode(pt, decrypted); err != nil {
 		panic(err)
 	}
-	vdec.CallVdecProver(seed, params, client.SecretKey(), ct, m)
+	span := core.StartSpan("Prove BfvDecBatched", nil, "Prove BfvDecBatched...")
+	vdec.CallVdecProver(seed, params, client.SecretKey(), ct, m, span)
+	span.End()
 
 	for i := range decrypted {
 		if decrypted[i] != m[i] {
@@ -126,7 +128,9 @@ func testVdecBatched(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.C
 		}
 
 		transcript := core.NewTranscript("vdec")
-		err = vdec.ProveBfvDecBatched(instance, client.SecretKey(), server.Evaluator, client.Field(), transcript)
+		span := core.StartSpan("Prove BfvDecBatched", nil, "Prove BfvDecBatched...")
+		err = vdec.ProveBfvDecBatched(instance, client.SecretKey(), server.Evaluator, client.Field(), transcript, span)
+		span.End()
 		if err != nil {
 			panic(err)
 		}

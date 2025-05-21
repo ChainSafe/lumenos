@@ -3,7 +3,6 @@ package fhe_test
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
@@ -14,8 +13,9 @@ import (
 const (
 	rows    = 2048
 	cols    = 1024
-	Modulus = 0x3ee0001
+	Modulus = 144115188075593729
 	rhoInv  = 2
+	// Modulus = 0x3ee0001
 	// Modulus = 288230376150630401
 	// Modulus = 144115188075593729 // allows LogN >= 15
 )
@@ -33,8 +33,6 @@ func TestLigeroRLC(t *testing.T) {
 }
 
 func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV, *testing.T, bool), vdec bool) {
-	start := time.Now()
-
 	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(cols, 13, Modulus)
 	if err != nil {
 		panic(err)
@@ -44,13 +42,9 @@ func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV,
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Parameter generation took: %v\n", time.Since(start))
-
 	// Generate keys
-	start = time.Now()
 	kgen := rlwe.NewKeyGenerator(params)
 	sk, pk := kgen.GenKeyPairNew()
-	fmt.Printf("Key generation took: %v\n", time.Since(start))
 
 	// Relinearization Key
 	rlk := kgen.GenRelinearizationKeyNew(sk)
@@ -73,7 +67,6 @@ func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV,
 }
 
 func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T, vdec bool) {
-	start := time.Now()
 	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
@@ -84,9 +77,8 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Matrix generation and encoding took: %v\n", time.Since(start))
 	// Encrypt the batched columns
-	start = time.Now()
+	span := core.StartSpan("Encrypt matrix", nil)
 	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
 	for i, plaintext := range batchedCols {
 		ciphertext, err := s.EncryptNew(plaintext)
@@ -95,49 +87,53 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 		}
 		ciphertexts[i] = ciphertext
 	}
-	fmt.Printf("Encryption took: %v\n", time.Since(start))
+	span.End()
 
 	ligero, err := fhe.NewLigeroCommitter(128, rows, cols, rhoInv)
 	if err != nil {
 		panic(err)
 	}
-	ligero.Queries = 1 // TODO: fix for more than 1 query
+	println("Number of queried columns:", ligero.Queries)
 
-	comm, _, err := ligero.Commit(ciphertexts, s)
+	span = core.StartSpan("Commit FHE evaluation", nil, "Commit FHE evaluation...")
+	comm, _, err := ligero.Commit(ciphertexts, s, span)
 	if err != nil {
 		panic(err)
 	}
-
+	span.EndWithNewline()
 	z := core.NewElement(1)
 
-	start = time.Now()
 	transcript := core.NewTranscript("test")
-	encryptedProof, err := comm.Prove(z, s, transcript)
+	span = core.StartSpan("Prove FHE evaluation", nil, "Prove FHE evaluation...")
+	encryptedProof, err := comm.Prove(z, s, transcript, span)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("FHE evaluation took: %v\n", time.Since(start))
+	span.EndWithNewline()
 
+	span = core.StartSpan("Decrypt proof", nil, "Decrypt proof...")
 	verifierTranscript := core.NewTranscript("test")
 
 	poly := core.NewDensePolyFromMatrix(matrix)
 	value := poly.Evaluate(s.Field(), z)
 
-	proof, err := encryptedProof.Decrypt(c, vdec)
+	proof, err := encryptedProof.Decrypt(c, vdec, span)
 	if err != nil {
 		panic(err)
 	}
+	span.EndWithNewline()
 
+	span = core.StartSpan("Verify proof", nil)
 	err = proof.Verify(z, value, c, verifierTranscript)
 	if err != nil {
 		panic(err)
 	}
+	span.EndWithNewline()
 
 	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
 }
 
 func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T, _ bool) {
-	start := time.Now()
 	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
@@ -148,9 +144,8 @@ func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Matrix generation and encoding took: %v\n", time.Since(start))
 	// Encrypt the batched columns
-	start = time.Now()
+	span := core.StartSpan("Encrypt matrix", nil)
 	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
 	for i, plaintext := range batchedCols {
 		ciphertext, err := s.EncryptNew(plaintext)
@@ -159,34 +154,31 @@ func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 		}
 		ciphertexts[i] = ciphertext
 	}
-	fmt.Printf("Encryption took: %v\n", time.Since(start))
+	span.End()
 
-	ligero := &fhe.LigeroCommitter{
-		LigeroMetadata: fhe.LigeroMetadata{
-			Rows:    rows,
-			Cols:    cols,
-			RhoInv:  rhoInv,
-			Queries: 1,
-		},
-	}
-
-	comm, _, err := ligero.Commit(ciphertexts, s)
+	ligero, err := fhe.NewLigeroCommitter(128, rows, cols, rhoInv)
 	if err != nil {
 		panic(err)
 	}
+
+	span = core.StartSpan("Commit FHE evaluation", nil)
+	comm, _, err := ligero.Commit(ciphertexts, s, span)
+	if err != nil {
+		panic(err)
+	}
+	span.End()
 
 	z := core.NewElement(1)
 
-	start = time.Now()
 	transcript := core.NewTranscript("test")
-	result, err := comm.Prove(z, s, transcript)
+	span = core.StartSpan("Prove FHE evaluation", nil)
+	result, err := comm.Prove(z, s, transcript, span)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("FHE evaluation took: %v\n", time.Since(start))
+	span.End()
 
-	// Decrypt and print results
-	start = time.Now()
+	span = core.StartSpan("Decrypt and decode", nil)
 	vMat := make([]*core.Element, cols)
 
 	for j, ciphertext := range result.MatR {
@@ -197,18 +189,16 @@ func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 		}
 		vMat[j] = core.NewElement(column[0])
 	}
-	fmt.Printf("Decryption and decoding took: %v\n", time.Since(start))
+	span.End()
 
 	transcriptCheck := core.NewTranscript("test")
 	transcriptCheck.AppendBytes("root", comm.Tree.MerkleRoot())
-	start = time.Now()
+	span = core.StartSpan("Prove reference", nil)
 	vMatCheck, err := ligeroProveReference(matrix, s.Field(), transcriptCheck)
 	if err != nil {
 		panic(err)
 	}
-
-	fmt.Printf("Plain Ligero: %v\n", time.Since(start))
-	fmt.Printf("vMat check: %v\n", vMatCheck)
+	span.End()
 
 	for i := range vMat {
 		if !vMat[i].Equal(vMatCheck[i]) {
