@@ -159,3 +159,5 @@ vdec_test
 
 vdec/vdec
 scripts/vdec_params_generator.sage.py
+
+.vscode
