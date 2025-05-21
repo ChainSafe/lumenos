@@ -237,6 +237,8 @@ func matrixInnerSumEval(matrix []*rlwe.Ciphertext, plaintext *rlwe.Plaintext, ro
 					continue
 				}
 
+				// TODO: ring switch to discard garbage slots
+
 				resultChan <- matrixElementResult{index: i, col: col}
 			}
 		}()
@@ -279,26 +281,32 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 
 	// Decrypt queried columns
 	span := core.StartSpan("Decrypt queried columns", ctx)
-	queriedCols := make([][]*core.Element, len(p.QueriedCols))
+	queriedColsResult, err := decryptBatchedParallel(
+		p.QueriedCols,
+		client,
+		func(encoder *bgv.Encoder, pt *rlwe.Plaintext) ([]*core.Element, error) {
+			column := make([]uint64, rows)
+			if err := encoder.Decode(pt, column); err != nil {
+				return nil, err
+			}
 
-	for j, col := range p.QueriedCols {
-		plaintext := client.DecryptNew(col)
-		column := make([]uint64, rows)
-		if err := client.Decode(plaintext, column); err != nil {
-			return nil, err
-		}
-
-		queriedCols[j] = make([]*core.Element, rows)
-		for i := range column {
-			queriedCols[j][i] = core.NewElement(column[i])
-		}
+			result := make([]*core.Element, rows)
+			for i := range column {
+				result[i] = core.NewElement(column[i])
+			}
+			return result, nil
+		},
+		span,
+	)
+	if err != nil {
+		span.End()
+		return nil, err
 	}
-
 	queriedColsPairs := make([]*vdec.ColumnInstance, len(p.QueriedCols))
 	for i := range p.QueriedCols {
 		queriedColsPairs[i] = &vdec.ColumnInstance{
 			Ct:     p.QueriedCols[i],
-			Values: queriedCols[i],
+			Values: queriedColsResult[i],
 		}
 	}
 	span.End()
@@ -318,7 +326,6 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	// Decrypt row inner products concurrently
 	span = core.StartSpan("Decrypt row inner products", ctx)
 
-	// Create channels for concurrent decryption
 	matRChan := make(chan struct {
 		matR []*core.Element
 		err  error
@@ -328,25 +335,45 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 		err  error
 	}, 1)
 
-	// Start concurrent decryption of MatR
+	decodeSingleElement := func(encoder *bgv.Encoder, pt *rlwe.Plaintext) (*core.Element, error) {
+		column := make([]uint64, rows)
+		if err := encoder.Decode(pt, column); err != nil {
+			return nil, err
+		}
+		return core.NewElement(column[0]), nil
+	}
+
+	// Concurrent decryption of MatR and MatZ
 	go func() {
-		matR, err := decryptMatrixInnerProduct(p.MatR, client, rows, span)
+		matR, err := decryptBatchedParallel(
+			p.MatR,
+			client,
+			func(encoder *bgv.Encoder, pt *rlwe.Plaintext) (*core.Element, error) {
+				return decodeSingleElement(encoder, pt)
+			},
+			span,
+		)
 		matRChan <- struct {
 			matR []*core.Element
 			err  error
 		}{matR, err}
 	}()
 
-	// Start concurrent decryption of MatZ
 	go func() {
-		matZ, err := decryptMatrixInnerProduct(p.MatZ, client, rows, span)
+		matZ, err := decryptBatchedParallel(
+			p.MatZ,
+			client,
+			func(encoder *bgv.Encoder, pt *rlwe.Plaintext) (*core.Element, error) {
+				return decodeSingleElement(encoder, pt)
+			},
+			span,
+		)
 		matZChan <- struct {
 			matZ []*core.Element
 			err  error
 		}{matZ, err}
 	}()
 
-	// Collect results
 	matRResult := <-matRChan
 	if matRResult.err != nil {
 		span.End()
@@ -373,60 +400,6 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	return proof, nil
 }
 
-func decryptMatrixInnerProduct(matrix []*rlwe.Ciphertext, client *ClientBFV, rows int, span *core.Span) ([]*core.Element, error) {
-	result := make([]*core.Element, len(matrix))
-	type decryptionResult struct {
-		index int
-		value *core.Element
-		err   error
-	}
-	resultChan := make(chan decryptionResult, len(matrix))
-
-	numWorkers := determineOptimalWorkers(len(matrix))
-	workChan := make(chan int, len(matrix))
-
-	var wg sync.WaitGroup
-	for w := 0; w < numWorkers; w++ {
-		wg.Add(1)
-		client := client.CopyNew()
-		go func() {
-			defer wg.Done()
-			for i := range workChan {
-				pt := client.DecryptNew(matrix[i]) // TODO: can descrypt just first slot?
-				column := make([]uint64, rows)
-				if err := client.Decode(pt, column); err != nil {
-					resultChan <- decryptionResult{index: i, err: err}
-					continue
-				}
-				resultChan <- decryptionResult{
-					index: i,
-					value: core.NewElement(column[0]),
-				}
-			}
-		}()
-	}
-
-	for i := range matrix {
-		workChan <- i
-	}
-	close(workChan)
-
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	for res := range resultChan {
-		if res.err != nil {
-			span.End()
-			return nil, res.err
-		}
-		result[res.index] = res.value
-	}
-
-	return result, nil
-}
-
 func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientBFV, transcript *core.Transcript) error {
 	rows := p.Metadata.Rows
 	cols := p.Metadata.Cols
@@ -439,7 +412,6 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientB
 
 	// Encode row inner products
 	encodedMatR := core.Encode(p.MatR, p.Metadata.RhoInv, client.Field())
-
 	encodedMatZ := core.Encode(p.MatZ, p.Metadata.RhoInv, client.Field())
 
 	transcript.AppendField("point", point)
@@ -487,6 +459,68 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientB
 	}
 
 	return nil
+}
+
+// decryptBatchedParallel decrypts ciphertexts in parallel using the provided decoder function
+func decryptBatchedParallel[T any](
+	matrix []*rlwe.Ciphertext,
+	client *ClientBFV,
+	decoder func(*bgv.Encoder, *rlwe.Plaintext) (T, error),
+	span *core.Span,
+) ([]T, error) {
+	type decryptionResult[T any] struct {
+		index int
+		value T
+		err   error
+	}
+
+	result := make([]T, len(matrix))
+	resultChan := make(chan decryptionResult[T], len(matrix))
+
+	numWorkers := determineOptimalWorkers(len(matrix))
+	workChan := make(chan int, len(matrix))
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		client := client.CopyNew()
+		go func() {
+			defer wg.Done()
+			for i := range workChan {
+				pt := client.DecryptNew(matrix[i])
+				value, err := decoder(client.Encoder, pt)
+				if err != nil {
+					resultChan <- decryptionResult[T]{index: i, err: err}
+					continue
+				}
+
+				resultChan <- decryptionResult[T]{
+					index: i,
+					value: value,
+				}
+			}
+		}()
+	}
+
+	for i := range matrix {
+		workChan <- i
+	}
+	close(workChan)
+
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	for res := range resultChan {
+		if res.err != nil {
+			span.End()
+			return nil, res.err
+		}
+		result[res.index] = res.value
+	}
+
+	return result, nil
 }
 
 func sampleQueryIndices(transcript *core.Transcript, queries int, extCols int) []int {
