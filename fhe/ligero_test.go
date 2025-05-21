@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	rows    = 2048
-	cols    = 1024
-	Modulus = 144115188075593729
+	rows    = 256
+	cols    = 128
+	Modulus = 0x3ee0001
 	rhoInv  = 2
 	// Modulus = 0x3ee0001
 	// Modulus = 288230376150630401
@@ -93,6 +93,7 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	if err != nil {
 		panic(err)
 	}
+
 	println("Number of queried columns:", ligero.Queries)
 
 	span = core.StartSpan("Commit FHE evaluation", nil, "Commit FHE evaluation...")
@@ -110,6 +111,16 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 		panic(err)
 	}
 	span.EndWithNewline()
+
+	marshaled, err := encryptedProof.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+
+	encryptedProof = &fhe.EncryptedProof{}
+	if err := encryptedProof.UnmarshalBinary(marshaled, &params); err != nil {
+		panic(err)
+	}
 
 	span = core.StartSpan("Decrypt proof", nil, "Decrypt proof...")
 	verifierTranscript := core.NewTranscript("test")
@@ -145,7 +156,6 @@ func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 		panic(err)
 	}
 	// Encrypt the batched columns
-	span := core.StartSpan("Encrypt matrix", nil)
 	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
 	for i, plaintext := range batchedCols {
 		ciphertext, err := s.EncryptNew(plaintext)
@@ -154,24 +164,21 @@ func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 		}
 		ciphertexts[i] = ciphertext
 	}
-	span.End()
 
 	ligero, err := fhe.NewLigeroCommitter(128, rows, cols, rhoInv)
 	if err != nil {
 		panic(err)
 	}
 
-	span = core.StartSpan("Commit FHE evaluation", nil)
-	comm, _, err := ligero.Commit(ciphertexts, s, span)
+	comm, _, err := ligero.Commit(ciphertexts, s, nil)
 	if err != nil {
 		panic(err)
 	}
-	span.End()
 
 	z := core.NewElement(1)
 
 	transcript := core.NewTranscript("test")
-	span = core.StartSpan("Prove FHE evaluation", nil)
+	span := core.StartSpan("Prove FHE evaluation", nil)
 	result, err := comm.Prove(z, s, transcript, span)
 	if err != nil {
 		panic(err)

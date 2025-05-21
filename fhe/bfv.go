@@ -150,7 +150,7 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 	// The formula k+1 works directly for k=1 (nttSize=2) as well.
 	numQPrimes := k
 
-	fmt.Println("numQPrimes", numQPrimes)
+	fmt.Println("ModQ chain length", numQPrimes)
 
 	// Generate LogQ slice: Use [60, 59, 59, ...] pattern
 	logQ := make([]int, numQPrimes)

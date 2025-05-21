@@ -1,8 +1,11 @@
 package fhe
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math"
+	"math/bits"
 
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/vdec"
@@ -95,11 +98,11 @@ func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV, 
 
 type EncryptedProof struct {
 	Metadata    LigeroMetadata
-	Root        []byte
 	MatR        []*rlwe.Ciphertext
 	MatZ        []*rlwe.Ciphertext
 	QueriedCols []*rlwe.Ciphertext
 	MerklePaths []core.MerklePath
+	Root        []byte
 }
 
 func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript *core.Transcript, ctx *core.Span) (*EncryptedProof, error) {
@@ -349,4 +352,126 @@ func sampleQueryIndices(transcript *core.Transcript, queries int, extCols int) [
 		queryIndices[i] = int(transcript.SampleUint64("query") % uint64(extCols))
 	}
 	return queryIndices
+}
+
+func (p *EncryptedProof) MarshalBinary() ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	if err := p.WriteTo(buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (p *EncryptedProof) UnmarshalBinary(data []byte, params *bgv.Parameters) error {
+	buf := bytes.NewBuffer(data)
+	return p.ReadFrom(buf, params)
+}
+
+func (p *EncryptedProof) WriteTo(buf *bytes.Buffer) error {
+	if err := p.Metadata.WriteTo(buf); err != nil {
+		return err
+	}
+
+	for i := range p.MatR {
+		if _, err := p.MatR[i].WriteTo(buf); err != nil {
+			return err
+		}
+	}
+
+	for i := range p.MatZ {
+		if _, err := p.MatZ[i].WriteTo(buf); err != nil {
+			return err
+		}
+	}
+
+	for i := range p.QueriedCols {
+		if _, err := p.QueriedCols[i].WriteTo(buf); err != nil {
+			return err
+		}
+	}
+
+	for i := range p.MerklePaths {
+		if err := p.MerklePaths[i].WriteTo(buf); err != nil {
+			return err
+		}
+	}
+
+	if _, err := buf.Write(p.Root); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *EncryptedProof) ReadFrom(buf *bytes.Buffer, params *bgv.Parameters) error {
+	if err := p.Metadata.ReadFrom(buf); err != nil {
+		return err
+	}
+
+	p.MatR = make([]*rlwe.Ciphertext, p.Metadata.Cols)
+	for i := range p.MatR {
+		p.MatR[i] = rlwe.NewCiphertext(params, params.MaxLevel())
+		if _, err := p.MatR[i].ReadFrom(buf); err != nil {
+			return err
+		}
+	}
+
+	p.MatZ = make([]*rlwe.Ciphertext, p.Metadata.Cols)
+	for i := range p.MatZ {
+		p.MatZ[i] = rlwe.NewCiphertext(params, params.MaxLevel())
+		if _, err := p.MatZ[i].ReadFrom(buf); err != nil {
+			return err
+		}
+	}
+
+	p.QueriedCols = make([]*rlwe.Ciphertext, p.Metadata.Queries)
+	for i := range p.QueriedCols {
+		p.QueriedCols[i] = rlwe.NewCiphertext(params, params.MaxLevel())
+		if _, err := p.QueriedCols[i].ReadFrom(buf); err != nil {
+			return err
+		}
+	}
+
+	p.MerklePaths = make([]core.MerklePath, p.Metadata.Queries)
+	merkleLen := (p.Metadata.Cols * p.Metadata.RhoInv)
+	nextPow2 := 1 << (64 - bits.LeadingZeros64(uint64(merkleLen-1)))
+	merkleDepth := int(math.Log2(float64(nextPow2)))
+	for i := range p.MerklePaths {
+		p.MerklePaths[i] = make(core.MerklePath, merkleDepth)
+		if err := p.MerklePaths[i].ReadFrom(buf); err != nil {
+			return err
+		}
+	}
+
+	p.Root = make([]byte, 32)
+	if _, err := buf.Read(p.Root); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *LigeroMetadata) WriteTo(buf *bytes.Buffer) error {
+	binary.Write(buf, binary.LittleEndian, uint32(p.Rows))
+	binary.Write(buf, binary.LittleEndian, uint32(p.Cols))
+	binary.Write(buf, binary.LittleEndian, uint8(p.RhoInv))
+	binary.Write(buf, binary.LittleEndian, uint16(p.Queries))
+	return nil
+}
+
+func (p *LigeroMetadata) ReadFrom(buf *bytes.Buffer) error {
+	var rows, cols uint32
+	var rhoInv uint8
+	var queries uint16
+
+	binary.Read(buf, binary.LittleEndian, &rows)
+	binary.Read(buf, binary.LittleEndian, &cols)
+	binary.Read(buf, binary.LittleEndian, &rhoInv)
+	binary.Read(buf, binary.LittleEndian, &queries)
+
+	p.Rows = int(rows)
+	p.Cols = int(cols)
+	p.RhoInv = int(rhoInv)
+	p.Queries = int(queries)
+	return nil
 }

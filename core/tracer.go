@@ -43,20 +43,6 @@ func StartSpan(name string, parent *Span, message ...string) *Span {
 	return span
 }
 
-func StartOneShotSpan(name string) *Span {
-	mu.Lock()
-	defer mu.Unlock()
-
-	span := &Span{
-		name:      name,
-		startTime: time.Now(),
-		parent:    nil,
-		depth:     0,
-	}
-
-	return span
-}
-
 // WithSpan executes the given function within a span and returns its result
 func WithSpan[T any](name string, parent *Span, fn func(*Span) T) T {
 	span := StartSpan(name, parent)
