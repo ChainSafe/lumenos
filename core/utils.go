@@ -47,9 +47,9 @@ func RandomMatrixRowMajor[T any](rows, cols int, batchEncoder func([]uint64) *T)
 	if rows <= 0 || cols <= 0 {
 		return nil, nil, fmt.Errorf("dimensions must be positive")
 	}
-	if rows&(rows-1) != 0 {
-		return nil, nil, fmt.Errorf("rows must be a power of 2")
-	}
+	// if rows&(rows-1) != 0 {
+	// 	return nil, nil, fmt.Errorf("rows must be a power of 2")
+	// }
 
 	seed := make([]byte, 32)
 	binary.LittleEndian.PutUint64(seed, 1)

@@ -79,9 +79,10 @@ func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV, 
 		return nil, nil, err
 	}
 
-	leafs := make([]core.Leaf, len(encoded))
-	for i := range encoded {
-		leafs[i] = encoded[i].CopyNew()
+	span := core.StartSpan("Merkle tree built", ctx)
+	leafs, err := processLeafParallel(encoded, backend)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// TODO: Merkle tree with leafs -- inner prouducts of columns and some random vector, cheaper?
@@ -89,6 +90,7 @@ func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV, 
 	if err != nil {
 		return nil, nil, err
 	}
+	span.End()
 
 	return &LigeroProver{
 		Committer:     c,
@@ -96,6 +98,65 @@ func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV, 
 		EncodedMatrix: encoded,
 		Tree:          tree,
 	}, tree.MerkleRoot(), nil
+}
+
+func processLeafParallel(encoded []*rlwe.Ciphertext, backend *ServerBFV) ([]core.Leaf, error) {
+	type leafResult struct {
+		index int
+		leaf  core.Leaf
+		err   error
+	}
+
+	leafs := make([]core.Leaf, len(encoded))
+	resultChan := make(chan leafResult, len(encoded))
+
+	numWorkers := determineOptimalWorkers(len(encoded))
+	workChan := make(chan int, len(encoded))
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		backend := backend.CopyNew()
+		go func() {
+			defer wg.Done()
+			for i := range workChan {
+				ct := encoded[i].CopyNew()
+
+				// Mod switch
+				for ct.Level() > 1 {
+					if err := backend.Rescale(ct, ct); err != nil {
+						resultChan <- leafResult{index: i, err: err}
+						return
+					}
+				}
+
+				buf := bytes.NewBuffer(nil)
+				ct.WriteTo(buf)
+
+				resultChan <- leafResult{index: i, leaf: buf}
+			}
+		}()
+	}
+
+	for i := range encoded {
+		workChan <- i
+	}
+	close(workChan)
+
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	for i := 0; i < len(encoded); i++ {
+		res := <-resultChan
+		if res.err != nil {
+			return nil, res.err
+		}
+		leafs[res.index] = res.leaf
+	}
+
+	return leafs, nil
 }
 
 type EncryptedProof struct {
@@ -111,7 +172,8 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 	cols := c.Committer.Cols
 	rows := c.Committer.Rows
 
-	transcript.AppendBytes("root", c.Tree.MerkleRoot())
+	// don't write root to transcript for compatability with LigeroProveReference
+	// transcript.AppendBytes("root", c.Tree.MerkleRoot())
 
 	// Encode r vector
 	r := make([]uint64, rows)
@@ -174,6 +236,7 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 	transcript.AppendField("point", point)
 
 	// Query operations
+	querySpan := core.StartSpan("Query columns", ctx)
 	queriedCols := make([]*rlwe.Ciphertext, c.Committer.Queries)
 	merklePaths := make([]core.MerklePath, c.Committer.Queries)
 	extCols := c.Committer.Cols * c.Committer.RhoInv
@@ -181,13 +244,17 @@ func (c *LigeroProver) Prove(point *core.Element, backend *ServerBFV, transcript
 
 	for i, queryColIdx := range queryIndices {
 		queriedCols[i] = c.EncodedMatrix[queryColIdx]
+		// Mod switch
+		for queriedCols[i].Level() > 1 {
+			backend.Rescale(queriedCols[i], queriedCols[i])
+		}
 		var err error
 		merklePaths[i], err = c.Tree.GetMerklePath(uint(queryColIdx))
 		if err != nil {
 			return nil, err
 		}
 	}
-
+	querySpan.End()
 	proof := &EncryptedProof{
 		Metadata:    c.Committer.LigeroMetadata,
 		Root:        c.Tree.MerkleRoot(),
@@ -235,6 +302,11 @@ func matrixInnerSumEval(matrix []*rlwe.Ciphertext, plaintext *rlwe.Plaintext, ro
 				if err := backend.InnerSum(col, 1, rows, col); err != nil {
 					resultChan <- matrixElementResult{index: i, err: err}
 					continue
+				}
+
+				// Mod switch
+				for col.Level() > 1 {
+					backend.Rescale(col, col)
 				}
 
 				// TODO: ring switch to discard garbage slots
@@ -323,6 +395,29 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 		span.End()
 	}
 
+	// rs, err := NewRingSwitch(client, client.GetParameters().LogN()-1)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// for i := range p.MatR {
+	// 	ct, err := rs.RingSwitch(p.MatR[i], client)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	p.MatR[i] = ct
+	// }
+
+	// for i := range p.MatZ {
+	// 	ct, err := rs.RingSwitch(p.MatZ[i], client)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	p.MatZ[i] = ct
+	// }
+
+	// client = rs.NewClient(client)
+
 	// Decrypt row inner products concurrently
 	span = core.StartSpan("Decrypt row inner products", ctx)
 
@@ -336,7 +431,7 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	}, 1)
 
 	decodeSingleElement := func(encoder *bgv.Encoder, pt *rlwe.Plaintext) (*core.Element, error) {
-		column := make([]uint64, rows)
+		column := make([]uint64, 1)
 		if err := encoder.Decode(pt, column); err != nil {
 			return nil, err
 		}
@@ -404,8 +499,6 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientB
 	rows := p.Metadata.Rows
 	cols := p.Metadata.Cols
 	root := p.Root
-
-	transcript.AppendBytes("root", root)
 
 	r := make([]*core.Element, rows)
 	transcript.SampleFields("r", r)
@@ -670,4 +763,123 @@ func determineOptimalWorkers(matrixSize int) int {
 	// For large matrices, use more workers but cap at 2x CPU cores
 	// to avoid excessive context switching
 	return min(numCPU*2, matrixSize)
+}
+
+func (c *LigeroCommitter) LigeroProveReference(matrix [][]*core.Element, point *core.Element, field *core.PrimeField, transcript *core.Transcript, parentSpan *core.Span) (*Proof, error) {
+	rows := c.Rows
+	cols := c.Cols
+	rhoInv := c.RhoInv
+	queries := c.Queries
+
+	commitSpan := core.StartSpan("Ligero commit", parentSpan, "Ligero commit")
+	// Commit
+	encoded, err := func() ([][]*core.Element, error) {
+		span := core.StartSpan("Encode", commitSpan)
+		defer span.End()
+		encodedMatrix := make([][]*core.Element, rows)
+		for i := range matrix {
+			encodedMatrix[i] = core.Encode(matrix[i], rhoInv, field)
+		}
+
+		encodedMatrixColMajor := make([][]*core.Element, cols*rhoInv)
+		for i := range encodedMatrixColMajor {
+			encodedMatrixColMajor[i] = make([]*core.Element, rows)
+		}
+		for i := range encodedMatrixColMajor {
+			for j := range encodedMatrixColMajor[i] {
+				encodedMatrixColMajor[i][j] = encodedMatrix[j][i]
+			}
+		}
+		return encodedMatrixColMajor, nil
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	span := core.StartSpan("Merkle tree", commitSpan)
+	leafs := make([]core.Leaf, len(encoded))
+	for i := range encoded {
+		buf := bytes.NewBuffer(nil)
+		for j := range encoded[i] {
+			binary.Write(buf, binary.LittleEndian, encoded[i][j])
+		}
+		leafs[i] = buf
+	}
+
+	tree, err := core.NewTree(leafs)
+	if err != nil {
+		return nil, err
+	}
+	span.End()
+
+	proveSpan := core.StartSpan("Ligero prove", parentSpan, "Ligero prove")
+	span = core.StartSpan("Compute inner products R", proveSpan)
+
+	r := make([]*core.Element, rows)
+	transcript.SampleFields("r", r)
+	// Compute inner products of each row with r
+	matR := make([]*core.Element, cols)
+
+	for j := 0; j < cols; j++ {
+		sum := core.Zero()
+		for i := 0; i < rows; i++ {
+			// multiply matrix[i][j] by r[i] and add to sum
+			product := field.Mul(matrix[i][j], r[i])
+			sum = field.Add(sum, product)
+		}
+		matR[j] = sum
+	}
+	span.End()
+
+	span = core.StartSpan("Compute inner products B", proveSpan)
+	b := make([]*core.Element, rows)
+	zPow := field.Pow(uint64(cols), point)
+	powB := core.One()
+	for i := range b {
+		b[i] = powB
+		field.MulAssign(powB, zPow, powB)
+	}
+
+	matZ := make([]*core.Element, cols)
+	for j := 0; j < cols; j++ {
+		sum := core.Zero()
+		for i := 0; i < rows; i++ {
+			// multiply matrix[i][j] by r[i] and add to sum
+			product := field.Mul(matrix[i][j], b[i])
+			sum = field.Add(sum, product)
+		}
+		matZ[j] = sum
+	}
+	span.End()
+
+	transcript.AppendField("point", point)
+
+	span = core.StartSpan("Query columns", proveSpan)
+	queriedCols := make([]*vdec.ColumnInstance, queries)
+	merklePaths := make([]core.MerklePath, queries)
+	extCols := cols * rhoInv
+	queryIndices := sampleQueryIndices(transcript, queries, extCols)
+
+	for i, queryColIdx := range queryIndices {
+		queriedCols[i] = &vdec.ColumnInstance{
+			Values: encoded[queryColIdx],
+		}
+		var err error
+		merklePaths[i], err = tree.GetMerklePath(uint(queryColIdx))
+		if err != nil {
+			return nil, err
+		}
+	}
+	span.End()
+	proveSpan.End()
+
+	proof := &Proof{
+		Metadata:    c.LigeroMetadata,
+		Root:        tree.MerkleRoot(),
+		MatR:        matR,
+		MatZ:        matZ,
+		QueriedCols: queriedCols,
+		MerklePaths: merklePaths,
+	}
+	return proof, nil
 }

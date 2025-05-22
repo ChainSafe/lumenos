@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	rows    = 2048
+	rows    = 16384
 	cols    = 1024
 	Modulus = 144115188075593729
 	rhoInv  = 2
-	LogN    = 12
+	LogN    = 14
 	// Modulus = 0x3ee0001
 	// Modulus = 288230376150630401
 	// Modulus = 144115188075593729 // allows LogN >= 15
@@ -78,6 +78,16 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	if err != nil {
 		panic(err)
 	}
+
+	z := core.NewElement(1)
+
+	ligero, err := fhe.NewLigeroCommitter(128, rows, cols, rhoInv)
+	if err != nil {
+		panic(err)
+	}
+
+	println("Number of queried columns:", ligero.Queries)
+
 	// Encrypt the batched columns
 	span := core.StartSpan("Encrypt matrix", nil)
 	ciphertexts := make([]*rlwe.Ciphertext, len(batchedCols))
@@ -90,20 +100,12 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	}
 	span.End()
 
-	ligero, err := fhe.NewLigeroCommitter(128, rows, cols, rhoInv)
-	if err != nil {
-		panic(err)
-	}
-
-	println("Number of queried columns:", ligero.Queries)
-
 	span = core.StartSpan("Commit FHE evaluation", nil, "Commit FHE evaluation...")
 	comm, _, err := ligero.Commit(ciphertexts, s, span)
 	if err != nil {
 		panic(err)
 	}
 	span.EndWithNewline()
-	z := core.NewElement(1)
 
 	transcript := core.NewTranscript("test")
 	span = core.StartSpan("Prove FHE evaluation", nil, "Prove FHE evaluation...")
@@ -135,6 +137,8 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	}
 	span.EndWithNewline()
 
+	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
+
 	span = core.StartSpan("Verify proof", nil)
 	err = proof.Verify(z, value, c, verifierTranscript)
 	if err != nil {
@@ -142,7 +146,26 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	}
 	span.EndWithNewline()
 
-	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
+	span = core.StartSpan("Ligero reference", nil, "Ligero reference...")
+	referenceTranscript := core.NewTranscript("test")
+	proofCheck, err := ligero.LigeroProveReference(matrix, z, s.Field(), referenceTranscript, span)
+	if err != nil {
+		panic(err)
+	}
+	span.End()
+
+	for i := range proof.MatR {
+		if !proof.MatR[i].Equal(proofCheck.MatR[i]) {
+			t.Fatalf("Matrices differ at [%d]: expected %v, got %v", i, proofCheck.MatR[i], proof.MatR[i])
+		}
+	}
+
+	for i := range proof.MatZ {
+		if !proof.MatZ[i].Equal(proofCheck.MatZ[i]) {
+			t.Fatalf("Matrices differ at [%d]: expected %v, got %v", i, proofCheck.MatZ[i], proof.MatZ[i])
+		}
+	}
+
 }
 
 func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T, _ bool) {
