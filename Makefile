@@ -29,16 +29,16 @@ update-submodules:
 
 # Set default server URL
 REMOTE_SERVER_URL ?= "http://localhost:8080"
-ROWS ?= 16384
-COLS ?= 4096
-LOGN ?= 14
+ROWS ?= 2048
+COLS ?= 1024
+LOGN ?= 12
 RING_SWITCH_LOGN ?= -1
 IS_GBFV ?= false
 
 # Build and run server
 server:
 	@echo "--- Building and running FHE server ---"
-	go run cmd/server/main.go -rows $(ROWS) -cols $(COLS) -logN $(LOGN)
+	go run cmd/server/main.go -rows $(ROWS) -cols $(COLS) -logN $(LOGN)  -benchMode
 
 # Build and run client
 client:

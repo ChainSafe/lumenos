@@ -18,9 +18,6 @@ echo ""
 
 # Build with make first
 echo "Building with make..."
-# Suppress C compiler warnings during build
-export CFLAGS="${CFLAGS} -w"
-export CPPFLAGS="${CPPFLAGS} -w" 
 make build IS_GBFV=$IS_GBFV 2>/dev/null || make build IS_GBFV=$IS_GBFV
 
 # Create results directory
