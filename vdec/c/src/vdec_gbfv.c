@@ -13,10 +13,12 @@
 #define GBFV 1      /* if using BFV instead, set to 0 (changes rotation function) */
 #define DEGREE 3078 /* fhe degree */
 
+#include "vdec_ct_lattigo.h"
+
 /* Number of elements in an n x n (upper) diagonal matrix. */
 #define NELEMS_DIAG(n) (((n) * (n) - (n)) / 2 + (n))
 
-void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
+int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
                         polyvec_t sk, int8_t sk_sign[], polyvec_t ct0, polyvec_t ct1,
                         polyvec_t m_delta, unsigned int fhe_degree);
 
@@ -139,7 +141,7 @@ _scatter_vec(spolyvec_ptr r1, spolyvec_ptr r1_, unsigned int m1,
 
 int main(int argc, char *argv[]){}
 
-void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
+int vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
                         polyvec_t sk, int8_t sk_sign[], polyvec_t ct0, polyvec_t ct1,
                         polyvec_t m_delta, unsigned int fhe_degree)
 {
@@ -214,8 +216,8 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   int_set_i64(hi, 1);
   polyvec_urandom_bnd(s2, lo, hi, seed, dom++);
 
-  printf("ajtai size: %d, bdlop size: %d, lext:%d, lambda:%d\n", m1, l, abdlop->lext, lambda);
-  printf("quad-many l: %d, quad-many lext:%d\n\n", params->quad_many->l, params->quad_many->lext);
+  // printf("ajtai size: %d, bdlop size: %d, lext:%d, lambda:%d\n", m1, l, abdlop->lext, lambda);
+  // printf("quad-many l: %d, quad-many lext:%d\n\n", params->quad_many->l, params->quad_many->lext);
 
   // #region Committing to witness
 
@@ -255,14 +257,14 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   // u_v
   polyvec_t c0_m;
   polyvec_alloc(c0_m, Rq, ct0->nelems);
-  printf("\nct0->nelems: %d", ct0->nelems);
+  // printf("\nct0->nelems: %d", ct0->nelems);
   polyvec_sub(c0_m, ct0, m_delta, 0);
-  printf("\nc0_m->nelems: %d", c0_m->nelems);
+  // printf("\nc0_m->nelems: %d", c0_m->nelems);
 
   // generate intvec with coeffs of ct0 - delta_m
   intvec_t sum_tmp_vec;
   intvec_alloc(sum_tmp_vec, d * c0_m->nelems, Rq->q->nlimbs);
-  printf("\nsum_tmp_vec->nelems: %d\n", sum_tmp_vec->nelems);
+  // printf("\nsum_tmp_vec->nelems: %d\n", sum_tmp_vec->nelems);
   intvec_ptr sum_tmp = &sum_tmp_vec;
   for (i = 0; i < c0_m->nelems; i++)
   {
@@ -282,8 +284,8 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   poly_ptr first_ct1_ptr = polyvec_get_elem(ct1, 0);
   size_t n = fhe_degree / d;
   size_t r = CT_COUNT;
-  printf("\nn: %d", n);
-  printf("\nr (CT_COUNT): %d\n", CT_COUNT);
+  // printf("\nn: %d", n);
+  // printf("\nr (CT_COUNT): %d\n", CT_COUNT);
 
   intvec_t w_sk, rot_s_vec;
   intvec_alloc(w_sk, CT_COUNT * d * n, Rq->q->nlimbs);
@@ -331,7 +333,7 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
     }
     else if (GBFV == 0)
     {
-      printf("start u_v build with BFV\n");
+      // printf("start u_v build with BFV\n");
       intvec_t rot_coeffvec;
       intvec_alloc(rot_coeffvec, d, Rq->q->nlimbs);
       intvec_t ct1_coeffs_vec2;
@@ -379,7 +381,7 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   
   intvec_add(u_v, w_sk, sum_tmp);
 
-  printf("finished u_v build\n");
+  // printf("finished u_v build\n");
 
   /************************************************************************/
   /*                                                                      */
@@ -567,7 +569,7 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
       DEBUG_PRINTF(DEBUG_PRINT_REJ, "%s", "reject u_v");
       continue;
     }
-    printf("did rejection sampling for z_v\n");
+    // printf("did rejection sampling for z_v\n");
 
     break;
   }
@@ -593,7 +595,7 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   seconds_bound = end_bound.tv_sec - start_bound.tv_sec;
   useconds_bound = end_bound.tv_usec - start_bound.tv_usec;
   wall_time_bound = seconds_bound + useconds_bound / 1e6; // Convert to seconds
-  printf(" ---------> (Bound proof): execution time: %f seconds\n", wall_time_bound);
+  // printf(" ---------> (Bound proof): execution time: %f seconds\n", wall_time_bound);
 
   /************************************************************************/
   /*                                                                      */
@@ -606,7 +608,7 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   polyvec_t subv2, subv_auto, tg, s2_;
   polymat_t Bextprime;
 
-  printf("start building statements for next parts of the proof\n");
+  // printf("start building statements for next parts of the proof\n");
   polyvec_free(s);                                       // freeing this because this is used in the original proof from quad_eval_test. Later we can remove this
   polyvec_alloc(s, Rq, 2 * (m1 + params->quad_many->l)); // double check this l (from quad-many and not quad)
 
@@ -794,18 +796,18 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   /* accumulate schwarz-zippel .. */
   // #region sz accumulate
 
-  printf("accumulating beta...\n");
+  // printf("accumulating beta...\n");
   __schwartz_zippel_accumulate_beta( // what should be here instead of params?
       R2prime_sz, r1prime_sz, r0prime_sz, R2prime_sz2, r1prime_sz2,
       r0prime_sz2, R2t, r1t, r0t, hashp, 0, params, nprime);
 
-  printf("accumulating z4...\n");
+  // printf("accumulating z4...\n");
   __schwartz_zippel_accumulate_z(R2prime_sz, r1prime_sz, r0prime_sz,
                                  R2prime_sz2, r1prime_sz2, r0prime_sz2,
                                  R2t, r1t, r0t, sum_tmp, zv,
                                  ct1_allcoeffs, hash0, d - 1, params, nprime);
 
-  printf("schwartz zippel auto...\n");
+  // printf("schwartz zippel auto...\n");
   for (i = 0; i < lambda / 2; i++)
   {
     __schwartz_zippel_auto(R2prime_sz[i], r1prime_sz[i], r0prime_sz[i],
@@ -847,28 +849,28 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   seconds_eval = end_eval.tv_sec - start_eval.tv_sec;
   useconds_eval = end_eval.tv_usec - start_eval.tv_usec;
   wall_time_eval = seconds_eval + useconds_eval / 1e6; // Convert to seconds
-  printf(" ---------> (Eval proof): execution time: %f seconds\n", wall_time_eval);
+  // printf(" ---------> (Eval proof): execution time: %f seconds\n", wall_time_eval);
 
   gettimeofday(&start_quadmany, NULL); // Start timing
-  printf("quad many prove...\n");
+  // printf("quad many prove...\n");
   memcpy(hashv, hashp, 32);
   lnp_quad_many_prove(hashp, tB, c, z1, z21, hint, s1, m, s2, tA2, A1, A2prime,
                       Bprime, R2prime_sz, r1prime_sz, lambda / 2 + 1,
                       seed_cont2, params->quad_many);
-  printf("finished proof generation\n\n");
+  // printf("finished proof generation\n\n");
 
   gettimeofday(&end_quadmany, NULL); // End timing
   // Compute the time difference in microseconds
   seconds_quadmany = end_quadmany.tv_sec - start_quadmany.tv_sec;
   useconds_quadmany = end_quadmany.tv_usec - start_quadmany.tv_usec;
   wall_time_quadmany = seconds_quadmany + useconds_quadmany / 1e6; // Convert to seconds
-  printf(" ---------> (Quadmany proof): execution time: %f seconds\n", wall_time_quadmany);
+  // printf(" ---------> (Quadmany proof): execution time: %f seconds\n", wall_time_quadmany);
   gettimeofday(&end_proof, NULL); // End timing
   // Compute the time difference in microseconds
   seconds_proof = end_proof.tv_sec - start_proof.tv_sec;
   useconds_proof = end_proof.tv_usec - start_proof.tv_usec;
   wall_time_proof = seconds_proof + useconds_proof / 1e6; // Convert to seconds
-  printf(" --------->  Proof generation:  %f seconds\n", wall_time_proof);
+  // printf(" --------->  Proof generation:  %f seconds\n", wall_time_proof);
 
   /************************************************************************/
   /*                                                                      */
@@ -901,15 +903,15 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
     if (int_eqzero(coeff) != 1)
     {
       b1 = 0;
-      printf("coeff 0 is ");
-      int_dump(coeff);
+      // printf("coeff 0 is ");
+      // int_dump(coeff);
     }
     coeff = poly_get_coeff(poly, d / 2);
     if (int_eqzero(coeff) != 1)
     {
       b2 = 0;
-      printf("coeff d/2 is ");
-      int_dump(coeff);
+      // printf("coeff d/2 is ");
+      // int_dump(coeff);
     }
   }
   printf("--> h_our coeff verification result: %d, %d\n", b1, b2);
@@ -945,6 +947,8 @@ void vdec_lnp_tbox(uint8_t seed[32], const lnp_quad_eval_params_t params,
   polymat_free(A1);
   polymat_free(A2prime);
   polymat_free(Bprime);
+
+  return 1;
 }
 
 // Function to print an array of uint8_t values with a description
@@ -1052,7 +1056,7 @@ _expand_R_i2(int8_t *Ri, unsigned int ncols, unsigned int i,
 
 void gbfv_rot(intmat_t r, const intvec_t c1, const polyring_t ring)
 {
-  printf("\n- Building GBFV rotation ...\n");
+  // printf("\n- Building GBFV rotation ...\n");
 
   intmat_t tmp_mat;
   intmat_alloc(tmp_mat, r->nrows, r->ncols, ring->q->nlimbs);
@@ -1120,7 +1124,7 @@ void gbfv_rot(intmat_t r, const intvec_t c1, const polyring_t ring)
   // printf("\n\n");
 
   intmat_set(r, tmp_mat);
-  printf("- Building rot ended.\n");
+  // printf("- Building rot ended.\n");
 }
 
 void gbfv_rot_col(intvec_t row, const intvec_t c1, unsigned int l, const polyring_t ring)
@@ -1914,7 +1918,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
     }
   }
 
-  printf("  - computing vR_\n");
+  // printf("  - computing vR_\n");
   // vR_ is same as vR but with correct number of limbs (after mod q)
   _MAT_FOREACH_ELEM(vR, i, j)
   {
@@ -1923,7 +1927,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
     int_mod(coeff2, coeff1, q);
   }
 
-  printf("  - computing vRu, vR_cols=%d, u_rows=%d\n", vR_->ncols, u_->nelems);
+  // printf("  - computing vRu, vR_cols=%d, u_rows=%d\n", vR_->ncols, u_->nelems);
   // generates u_, intvec with coefficients of elements in u.
   // vRu is intvec of lambda entries, vRu = vR_ * u_
   if (u_ != NULL)
@@ -1938,7 +1942,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
 
   // building vRDs and vRDm
   // consists of the ring elements from multiplying the integers in vR_ and Ds/Dm
-  printf("  - building vRDs\n");
+  // printf("  - building vRDs\n");
   polymat_t ovRDs;
   polymat_alloc(ovRDs, Rq, vRDs->nrows, vRDs->ncols);
 
@@ -1989,7 +1993,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
   }
 
   intvec_t subvec;
-  printf("putting coeffs into vRDs\n");
+  // printf("putting coeffs into vRDs\n");
   for (i = 0; i < vRDs_coeffs->nrows; i++)
   {
     intmat_get_row(row1, vRDs_coeffs, i);
@@ -2001,7 +2005,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
     }
   }
 
-  printf("  - computing o(vRDs)\n");
+  // printf("  - computing o(vRDs)\n");
   polymat_auto(ovRDs, vRDs);
   // polymat_lrot (vRDs, vRDs, d / 2); // * X^(d/2)  XXX correct
 
@@ -2010,7 +2014,7 @@ __schwartz_zippel_accumulate_z(spolymat_ptr R2i[], spolyvec_ptr r1i[],
   seconds = end.tv_sec - start.tv_sec;
   useconds = end.tv_usec - start.tv_usec;
   wall_time = seconds + useconds / 1e6; // Convert to seconds
-  printf(" ---------> (lambda & ovRDs): execution time: %f seconds\n", wall_time);
+  // printf(" ---------> (lambda & ovRDs): execution time: %f seconds\n", wall_time);
 
   // use previously built matrices to compute R2t, r1t and r0t
   for (k = 0; k < lambda; k++)

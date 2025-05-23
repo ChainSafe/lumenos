@@ -39,7 +39,6 @@ import (
 	"github.com/tuneinsight/lattigo/v6/schemes/bgv"
 )
 
-const DEGREE = 2048
 const CT_COUNT = 1
 
 // ColumnInstance is a pair of a batched ciphertext and associated decrypted column vector.
@@ -48,7 +47,7 @@ type ColumnInstance struct {
 	Values []*core.Element
 }
 
-func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, backend *bgv.Evaluator, field *core.PrimeField, transcript *core.Transcript, parentSpan *core.Span) error {
+func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, backend *bgv.Evaluator, field *core.PrimeField, transcript *core.Transcript, parentSpan *core.Span, is_gbfv ...bool) error {
 	cols := len(instance)
 	matrixColMajor := make([][]*core.Element, cols)
 	for j := range matrixColMajor {
@@ -69,7 +68,7 @@ func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, bac
 
 	cts := make([]*rlwe.Ciphertext, len(instance))
 	for i := range cts {
-		cts[i] = instance[i].Ct
+		cts[i] = instance[i].Ct.CopyNew()
 	}
 
 	span = core.StartSpan("Batching ciphertexts", parentSpan)
@@ -90,11 +89,16 @@ func ProveBfvDecBatched(instance []*ColumnInstance, witness *rlwe.SecretKey, bac
 		// fmt.Printf("rescaled batch ciphertext level Q (%d) -> %d\n", levelWas, batchCt.LevelQ())
 	}
 
-	return CallVdecProver(seed, *backend.GetParameters(), witness, batchCt, m, parentSpan)
+	degree := 2048
+	if len(is_gbfv) > 0 && is_gbfv[0] {
+		degree = 3078 // TODO: why GBFV needs higher degree?
+	}
+
+	return CallVdecProver(seed, *backend.GetParameters(), witness, batchCt, m, degree, parentSpan)
 }
 
 // CallVdecProver calls the C implementation of the vdec prover.
-func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice, parentSpan *core.Span) error {
+func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *rlwe.Ciphertext, m bgv.IntegerSlice, degree int, parentSpan *core.Span) error {
 	C.lazer_init()
 
 	span := core.StartSpan("Witness generation", parentSpan)
@@ -129,14 +133,14 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 		seedChar[i] = C.uint8_t(seed[i])
 	}
 
-	fheDegree := C.uint(DEGREE)
+	fheDegree := C.uint(degree)
 
-	skSign := make([]C.int8_t, DEGREE)
-	for i := 0; i < DEGREE; i++ {
+	skSign := make([]C.int8_t, degree)
+	for i := 0; i < degree; i++ {
 		skSign[i] = C.int8_t(skCoeffs[i])
 	}
 
-	numChunkPolys := DEGREE / int(proofDegree)
+	numChunkPolys := degree / int(proofDegree)
 
 	skVec := C.CreatePolyvec(rq, C.uint(numChunkPolys))
 	if skVec == nil {
@@ -217,7 +221,7 @@ func CallVdecProver(seed []byte, params bgv.Parameters, sk *rlwe.SecretKey, ct *
 		&seedChar[0],
 		skVec,
 		&skSign[0],
-		C.uint(DEGREE),
+		C.uint(degree),
 		ct0Vec,
 		ct1Vec,
 		mDeltaVec,

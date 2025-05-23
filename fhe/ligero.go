@@ -501,11 +501,11 @@ func (p EncryptedProof) Decrypt(client *ClientBFV, ctx *core.Span) (*Proof, erro
 	return proof, nil
 }
 
-func (p *Proof) ProveDecrypt(client *ClientBFV, ctx *core.Span) error {
+func (p *Proof) ProveDecrypt(client *ClientBFV, ctx *core.Span, isGBFV ...bool) error {
 	span := core.StartSpan("Verifiable decrypt", nil, "Verifiable decrypt...")
 	transcript := core.NewTranscript("vdec")
 
-	err := vdec.ProveBfvDecBatched(p.QueriedCols, client.SecretKey(), client.Evaluator, client.Field(), transcript, span)
+	err := vdec.ProveBfvDecBatched(p.QueriedCols, client.SecretKey(), client.Evaluator, client.Field(), transcript, span, isGBFV...)
 	if err != nil {
 		span.End()
 		panic(err)

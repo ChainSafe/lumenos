@@ -44,6 +44,7 @@ func main() {
 	logN := flag.Int("logN", 13, "LogN")
 	ringSwitchLogN := flag.Int("ringSwitchLogN", -1, "Ring switch logN (optional)")
 	vdec := flag.Bool("vdec", false, "Use vdec")
+	isGBFV := flag.Bool("isGBFV", false, "Use GBFV")
 	flag.Parse()
 
 	fmt.Printf("Starting client for matrix: %d x %d, logN: %d\n", *rows, *cols, *logN)
@@ -200,7 +201,7 @@ func main() {
 	runtime.GC()
 
 	if *vdec {
-		err = proof.ProveDecrypt(clientBFV, span)
+		err = proof.ProveDecrypt(clientBFV, span, *isGBFV)
 		if err != nil {
 			panic(fmt.Sprintf("Failed to prove decrypt: %v", err))
 		}

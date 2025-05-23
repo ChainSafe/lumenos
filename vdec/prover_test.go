@@ -74,7 +74,7 @@ func testVdecSimple(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.Cl
 		panic(err)
 	}
 	span := core.StartSpan("Prove BfvDecBatched", nil, "Prove BfvDecBatched...")
-	vdec.CallVdecProver(seed, params, client.SecretKey(), ct, m, span)
+	vdec.CallVdecProver(seed, params, client.SecretKey(), ct, m, 2048, span)
 	span.End()
 
 	for i := range decrypted {
