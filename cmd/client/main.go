@@ -46,6 +46,8 @@ func main() {
 	vdec := flag.Bool("vdec", false, "Use vdec")
 	flag.Parse()
 
+	fmt.Printf("Starting client for matrix: %d x %d, logN: %d\n", *rows, *cols, *logN)
+
 	z := core.NewElement(*point)
 
 	ptField, err := core.NewPrimeField(Modulus, *cols*2)
@@ -130,6 +132,8 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Println("Marshaled keys length:", humanize.Bytes(uint64(len(reqBody))))
+
 	resp, err := client.Post(*serverURL+"/keys", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
 		panic(fmt.Sprintf("Failed to send keys: %v", err))
@@ -189,10 +193,10 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to decrypt proof: %v", err))
 	}
-	span.EndWithNewline()
 
 	if clientBFV.RingSwitch() != nil {
 		fmt.Println("Ring switch is unstable, proof verification will fail")
+		fmt.Println()
 	} else {
 		valueElem := core.NewElement(value)
 		transcript := core.NewTranscript("demo")

@@ -46,15 +46,7 @@ func NewLigeroCommitter(securityBits float64, rows int, cols int, rhoInv int) (*
 		return nil, fmt.Errorf("securityBits must be positive")
 	}
 
-	// Calculate queries
-	queriesLogTerm := math.Log2(1.0 + 1.0/float64(rhoInv))
-	if 1.0-queriesLogTerm <= 0 {
-		return nil, fmt.Errorf("invalid parameters: log term calculation resulted in non-positive denominator")
-	}
-	queries := int(math.Ceil(securityBits / (1.0 - queriesLogTerm)))
-	if queries <= 0 {
-		return nil, fmt.Errorf("calculated queries must be positive, got %d", queries)
-	}
+	queries := calculateQueries(securityBits, rhoInv)
 
 	// Pick matrix aspect ratio to minimize proof size.
 	// cols := math.Ceil(math.Sqrt(float64(size)))
@@ -68,6 +60,36 @@ func NewLigeroCommitter(securityBits float64, rows int, cols int, rhoInv int) (*
 			Queries: queries,
 		},
 	}, nil
+}
+
+func calculateQueries(securityBits float64, rhoInv int) int {
+	queriesLogTerm := math.Log2(1.0 + 1.0/float64(rhoInv))
+	if 1.0-queriesLogTerm <= 0 {
+		return 0
+	}
+	return int(math.Ceil(securityBits / (1.0 - queriesLogTerm)))
+}
+
+func CalculateQueriesBCI20(securityBits float64, rhoInv int, rows int, modulus uint64) (int, error) {
+	// Took from the analysis by BCI+20 and Ligero
+	// We will find the smallest $t$ such that
+	// $(1-\delta)^t + (\rho+\delta)^t + \frac{n}{F} < 2^{-\lambda}$.
+	// With $\delta = \frac{1-\rho}{2}$, the expreesion is
+	// $2 * (\frac{1+\rho}{2})^t + \frac{n}{F} < 2^(-\lambda)$.
+
+	codewordLen := float64(rows * rhoInv)
+	fieldBits := bits.Len64(modulus)
+	secParam := int(securityBits)
+
+	residual := codewordLen / math.Pow(2, float64(fieldBits))
+	rhs := math.Log2(math.Pow(2, -float64(secParam)) - residual)
+	if !math.IsInf(rhs, 0) {
+		return 0, fmt.Errorf("field is not big enough")
+	}
+
+	nom := rhs - 1.0
+	denom := math.Log2(0.5 + 0.5/float64(rhoInv))
+	return int(math.Ceil(nom / denom)), nil
 }
 
 func (c *LigeroCommitter) Commit(matrix []*rlwe.Ciphertext, backend *ServerBFV, ctx *core.Span) (*LigeroProver, []byte, error) {
@@ -391,41 +413,6 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	}
 	span.End()
 
-	if verifiable {
-		span = core.StartSpan("Verifiable decrypt", ctx, "Verifiable decrypt...")
-		transcript := core.NewTranscript("vdec")
-
-		err := vdec.ProveBfvDecBatched(queriedColsPairs, client.SecretKey(), client.Evaluator, client.Field(), transcript, span)
-		if err != nil {
-			span.End()
-			return nil, err
-		}
-		span.End()
-	}
-
-	// rs, err := NewRingSwitch(client, client.GetParameters().LogN()-1)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// for i := range p.MatR {
-	// 	ct, err := rs.RingSwitch(p.MatR[i], client)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	p.MatR[i] = ct
-	// }
-
-	// for i := range p.MatZ {
-	// 	ct, err := rs.RingSwitch(p.MatZ[i], client)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	p.MatZ[i] = ct
-	// }
-
-	// client = rs.NewClient(client)
-
 	// Decrypt row inner products concurrently
 	span = core.StartSpan("Decrypt row inner products", ctx)
 
@@ -500,6 +487,19 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	}
 
 	span.End()
+	ctx.EndWithNewline()
+
+	if verifiable {
+		span = core.StartSpan("Verifiable decrypt", nil, "Verifiable decrypt...")
+		transcript := core.NewTranscript("vdec")
+
+		err := vdec.ProveBfvDecBatched(queriedColsPairs, client.SecretKey(), client.Evaluator, client.Field(), transcript, span)
+		if err != nil {
+			span.End()
+			return nil, err
+		}
+		span.End()
+	}
 
 	proof := &Proof{
 		Metadata:    p.Metadata,
