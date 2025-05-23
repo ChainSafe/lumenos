@@ -20,6 +20,8 @@ echo ""
 
 # Build with make first
 echo "Building.."
+# Suppress CGO C compiler warnings
+export CGO_CFLAGS="-w"
 make build IS_GBFV=$IS_GBFV 2>/dev/null || make build IS_GBFV=$IS_GBFV
 
 # Create results directory
