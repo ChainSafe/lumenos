@@ -14,8 +14,7 @@ This project aims to develop and validate Private Proof Delegation via server-si
 ### Build
 
 ```bash
-git submodule update --init --recursive
-make build
+make init-submodules build
 export LD_LIBRARY_PATH=./vdec/c
 ```
 

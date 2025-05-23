@@ -6,13 +6,27 @@ C_SUBDIR = $(VDEC_DIR)/c
 GO_SOURCE = main.go
 GO_EXE_NAME = vdec_test
 
-.PHONY: all build_c build_go run clean clean_c clean_go build html server client
+.PHONY: all build_c build_go run clean clean_c clean_go build html server client init-submodules update-submodules
 
 # Default target: build the Go application
 all: build
 
 # Set default server URL
 REMOTE_SERVER_URL ?= "http://localhost:8080"
+
+# Initialize submodules and clean any stale artifacts
+init-submodules:
+	@echo "--- Initializing submodules ---"
+	git submodule update --init --recursive
+	@echo "--- Cleaning submodule build artifacts to prevent conflicts ---"
+	$(MAKE) -C $(C_SUBDIR)/lazer clean || true
+
+# Update submodules to latest and clean artifacts
+update-submodules:
+	@echo "--- Updating submodules to latest ---"
+	git submodule update --remote --merge
+	@echo "--- Cleaning submodule build artifacts to prevent conflicts ---"
+	$(MAKE) -C $(C_SUBDIR)/lazer clean || true
 
 # Build and run server
 server:
