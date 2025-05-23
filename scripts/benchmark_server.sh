@@ -8,7 +8,7 @@ set -e
 # Environment variables for configuration
 RING_SWITCH_LOGN=${RING_SWITCH_LOGN:--1}
 IS_GBFV=${IS_GBFV:-false}
-VDEC=${VDEC:-false}
+VDEC=${VDEC:-true}
 
 echo "Environment configuration:"
 echo "RING_SWITCH_LOGN: $RING_SWITCH_LOGN"
@@ -28,10 +28,10 @@ mkdir -p results/server
 # Define configurations
 # Format: ROWS,COLS,LOGN
 CONFIGURATIONS=(
-   "2048,1024,12"
+    "2048,1024,12"
     "4096,2048,12"
-    "8192,4096,12"
-    "16384,4096,12"
+    "8192,4096,13"
+    "16384,4096,14"
 )
 
 echo "Starting server benchmark collection..."

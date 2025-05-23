@@ -8,7 +8,7 @@ set -e
 # Environment variables for configuration
 RING_SWITCH_LOGN=${RING_SWITCH_LOGN:--1}
 IS_GBFV=${IS_GBFV:-false}
-VDEC=${VDEC:-false}
+VDEC=${VDEC:-true}
 REMOTE_SERVER_URL=${REMOTE_SERVER_URL:-"http://localhost:8080"}
 
 echo "Environment configuration:"
@@ -32,8 +32,8 @@ mkdir -p results/client
 CONFIGURATIONS=(
     "2048,1024,12"
     "4096,2048,12"
-    "8192,4096,12"
-    "16384,4096,12"
+    "8192,4096,13"
+    "16384,4096,14"
 )
 
 echo "Starting client benchmark collection..."
