@@ -170,7 +170,6 @@ func main() {
 		if *benchMode {
 			go func() {
 				time.Sleep(100 * time.Millisecond)
-				fmt.Println("Benchmark completed, exiting...")
 				os.Exit(0)
 			}()
 		}

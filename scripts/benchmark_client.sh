@@ -52,9 +52,8 @@ for config in "${CONFIGURATIONS[@]}"; do
     echo "Ring Switch LogN: $RING_SWITCH_LOGN, GBFV: $IS_GBFV, VDEC: $VDEC"
     echo "=========================================="
     
-    # Create output file with timestamp
-    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-    OUTPUT_FILE="results/client/bench_${CASE_NAME}_${TIMESTAMP}.txt"
+    # Create output file
+    OUTPUT_FILE="results/client/bench_${CASE_NAME}.txt"
     
     echo "Output file: $OUTPUT_FILE"
     

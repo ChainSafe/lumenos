@@ -49,9 +49,8 @@ for config in "${CONFIGURATIONS[@]}"; do
     echo "Configuration: ROWS=$ROWS, COLS=$COLS, LOGN=$LOGN"
     echo "=========================================="
     
-    # Create output file with timestamp
-    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-    OUTPUT_FILE="results/server/bench_${CASE_NAME}_${TIMESTAMP}.txt"
+    # Create output file
+    OUTPUT_FILE="results/server/bench_${CASE_NAME}.txt"
     
     echo "Output file: $OUTPUT_FILE"
     echo "Starting server with benchMode=true..."
