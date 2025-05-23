@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/dustin/go-humanize"
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/vdec"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
@@ -642,23 +643,35 @@ func (p *EncryptedProof) WriteTo(buf *bytes.Buffer) error {
 		return err
 	}
 
+	matRSize := 0
 	for i := range p.MatR {
-		if _, err := p.MatR[i].WriteTo(buf); err != nil {
+		n, err := p.MatR[i].WriteTo(buf)
+		if err != nil {
 			return err
 		}
+		matRSize += int(n)
 	}
+	fmt.Printf("Marshaled MatR: %s\n", humanize.Bytes(uint64(matRSize)))
 
+	matZSize := 0
 	for i := range p.MatZ {
-		if _, err := p.MatZ[i].WriteTo(buf); err != nil {
+		n, err := p.MatZ[i].WriteTo(buf)
+		if err != nil {
 			return err
 		}
+		matZSize += int(n)
 	}
+	fmt.Printf("Marshaled MatZ: %s\n", humanize.Bytes(uint64(matZSize)))
 
+	queriedColsSize := 0
 	for i := range p.QueriedCols {
-		if _, err := p.QueriedCols[i].WriteTo(buf); err != nil {
+		n, err := p.QueriedCols[i].WriteTo(buf)
+		if err != nil {
 			return err
 		}
+		queriedColsSize += int(n)
 	}
+	fmt.Printf("Marshaled QueriedCols: %s\n", humanize.Bytes(uint64(queriedColsSize)))
 
 	for i := range p.MerklePaths {
 		if err := p.MerklePaths[i].WriteTo(buf); err != nil {

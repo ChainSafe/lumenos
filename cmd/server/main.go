@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 
+	"github.com/dustin/go-humanize"
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
@@ -213,10 +214,10 @@ func generateLigeroProofFHE(params bgv.Parameters, server *fhe.ServerBFV, z *cor
 		return 0, nil, err
 	}
 	span.EndWithNewline()
+	fmt.Printf("Marshaled encrypted proof length: %s\n", humanize.Bytes(uint64(len(marshaled))))
 
-	// Clean up encryptedProof as it's no longer needed
 	encryptedProof = nil
-	runtime.GC() // Request garbage collection
+	runtime.GC()
 
 	span = core.StartSpan("Evaluate polynomial", nil)
 	poly := core.NewDensePolyFromMatrix(matrix)
@@ -226,7 +227,7 @@ func generateLigeroProofFHE(params bgv.Parameters, server *fhe.ServerBFV, z *cor
 	// Clean up matrix and poly as they're no longer needed
 	matrix = nil
 	poly = nil
-	runtime.GC() // Request garbage collection
+	runtime.GC()
 
 	return value.Uint64(), marshaled, nil
 }

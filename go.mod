@@ -5,6 +5,7 @@ go 1.23.5
 require github.com/tuneinsight/lattigo/v6 v6.1.2-0.20250520151126-84f6bc33cb5b
 
 require (
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mimoo/StrobeGo v0.0.0-20181016162300-f8f6d4d2b643 // indirect
 )
