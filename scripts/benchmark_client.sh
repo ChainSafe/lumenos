@@ -18,7 +18,10 @@ echo ""
 
 # Build with make first
 echo "Building with make..."
-make build IS_GBFV=$IS_GBFV
+# Suppress C compiler warnings during build
+export CFLAGS="${CFLAGS} -w"
+export CPPFLAGS="${CPPFLAGS} -w" 
+make build IS_GBFV=$IS_GBFV 2>/dev/null || make build IS_GBFV=$IS_GBFV
 
 # Create results directory
 mkdir -p results/client
@@ -30,8 +33,8 @@ SERVER_PORT=8080
 # Define configurations
 # Format: ROWS,COLS,LOGN
 CONFIGURATIONS=(
+    "1024,1024,11"
     "2048,1024,12"
-    "4096,1024,12"
 )
 
 # Function to check if server is ready
@@ -70,7 +73,7 @@ start_server() {
     sleep 1
     
     # Start new server
-    go run cmd/server/main.go \
+    go run -ldflags="-w -s" cmd/server/main.go \
         -rows "$rows" \
         -cols "$cols" \
         -logN "$logn" \
@@ -150,7 +153,7 @@ for config in "${CONFIGURATIONS[@]}"; do
     } > "$OUTPUT_FILE"
     
     # Build client command
-    CLIENT_CMD="go run cmd/client/main.go -rows $ROWS -cols $COLS -logN $LOGN -server $SERVER_URL"
+    CLIENT_CMD="go run -ldflags='-w -s' cmd/client/main.go -rows $ROWS -cols $COLS -logN $LOGN -server $SERVER_URL"
     
     if [ "$VDEC" = "true" ]; then
         CLIENT_CMD="$CLIENT_CMD -vdec"

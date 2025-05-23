@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/nulltea/lumenos/core"
@@ -167,7 +168,11 @@ func main() {
 		w.(http.Flusher).Flush()
 
 		if *benchMode {
-			os.Exit(0)
+			go func() {
+				time.Sleep(1000 * time.Millisecond)
+				fmt.Println("Benchmark completed, exiting...")
+				os.Exit(0)
+			}()
 		}
 	})
 

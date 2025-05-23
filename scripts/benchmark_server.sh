@@ -18,7 +18,10 @@ echo ""
 
 # Build with make first
 echo "Building with make..."
-make build IS_GBFV=$IS_GBFV
+# Suppress C compiler warnings during build
+export CFLAGS="${CFLAGS} -w"
+export CPPFLAGS="${CPPFLAGS} -w" 
+make build IS_GBFV=$IS_GBFV 2>/dev/null || make build IS_GBFV=$IS_GBFV
 
 # Create results directory
 mkdir -p results/server
@@ -26,8 +29,8 @@ mkdir -p results/server
 # Define configurations
 # Format: ROWS,COLS,LOGN
 CONFIGURATIONS=(
+   "1024,1024,11"
     "2048,1024,12"
-    "4096,1024,12"
 )
 
 echo "Starting server benchmark collection..."
@@ -70,7 +73,7 @@ for config in "${CONFIGURATIONS[@]}"; do
     } > "$OUTPUT_FILE"
     
     # Run server in benchmark mode and capture output
-    if go run cmd/server/main.go \
+    if go run -ldflags="-w -s" cmd/server/main.go \
         -rows "$ROWS" \
         -cols "$COLS" \
         -logN "$LOGN" \
