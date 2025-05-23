@@ -11,6 +11,9 @@ GO_EXE_NAME = vdec_test
 # Default target: build the Go application
 all: build
 
+# Set default server URL
+REMOTE_SERVER_URL ?= "http://localhost:8080"
+
 # Build and run server
 server:
 	@echo "--- Building and running FHE server ---"
@@ -19,7 +22,7 @@ server:
 # Build and run client
 client:
 	@echo "--- Building and running FHE client ---"
-	go run cmd/client/main.go -rows 2048 -cols 1024 -logN 13
+	go run cmd/client/main.go -rows 2048 -cols 1024 -logN 13 -server $(REMOTE_SERVER_URL)
 
 # Build all C dependencies
 # This relies on the Makefile in $(C_SUBDIR) (vdec/c/Makefile)

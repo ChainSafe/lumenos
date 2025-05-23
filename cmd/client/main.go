@@ -161,4 +161,25 @@ func main() {
 		panic(fmt.Sprintf("Failed to verify proof: %v", err))
 	}
 	span.EndWithNewline()
+
+	matrix, _, err := core.RandomMatrixRowMajor(*rows, *cols, func(u []uint64) *rlwe.Plaintext {
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// Local ligero generation for reference
+
+	ligero, err := fhe.NewLigeroCommitter(128, *rows, *cols, RhoInv)
+	if err != nil {
+		panic(err)
+	}
+	span = core.StartSpan("Ligero local generation", nil, "Ligero local generation...")
+	referenceTranscript := core.NewTranscript("test")
+	_, err = ligero.LigeroProveReference(matrix, z, clientBFV.Field(), referenceTranscript, span)
+	if err != nil {
+		panic(err)
+	}
+	span.End()
 }

@@ -32,6 +32,7 @@ type ProveResponse struct {
 }
 
 func main() {
+	port := flag.Int("port", 8080, "Port to listen on")
 	rows := flag.Int("rows", 2048, "Number of rows in the matrix")
 	cols := flag.Int("cols", 1024, "Number of columns in the matrix")
 	logN := flag.Int("logN", 13, "LogN")
@@ -143,8 +144,8 @@ func main() {
 		w.(http.Flusher).Flush()
 	})
 
-	fmt.Printf("FHE Server started on :8080 (rows=%d, cols=%d, logN=%d)...\n", *rows, *cols, *logN)
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	fmt.Printf("FHE Server started on :%d (rows=%d, cols=%d, logN=%d)...\n", *port, *rows, *cols, *logN)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil); err != nil {
 		panic(err)
 	}
 }
