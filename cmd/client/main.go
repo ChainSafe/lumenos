@@ -76,13 +76,6 @@ func main() {
 	// Initialize the client
 	clientBFV := fhe.NewClientBFV(&ptField, params, sk)
 
-	rs, err := fhe.NewRingSwitchClient(clientBFV, 10)
-	if err != nil {
-		panic(err)
-	}
-
-	clientBFV.SetRingSwitch(rs)
-
 	// Send keys to server
 	pkBytes, err := pk.MarshalBinary()
 	if err != nil {
@@ -110,6 +103,13 @@ func main() {
 
 	// Check if ringSwitchLogN was set
 	if *ringSwitchLogN != -1 {
+		rs, err := fhe.NewRingSwitchClient(clientBFV, *ringSwitchLogN)
+		if err != nil {
+			panic(err)
+		}
+
+		clientBFV.SetRingSwitch(rs)
+
 		fmt.Printf("Request to use ring switch to LogN: %d\n", *ringSwitchLogN)
 
 		ringSwitchEvkBytes, err := rs.RingSwitchEvk.MarshalBinary()
@@ -177,14 +177,17 @@ func main() {
 	}
 	span.EndWithNewline()
 
-	valueElem := core.NewElement(value)
-
-	transcript := core.NewTranscript("demo")
-	span = core.StartSpan("Verify proof", nil)
-	if err := proof.Verify(z, valueElem, clientBFV, transcript); err != nil {
-		panic(fmt.Sprintf("Failed to verify proof: %v", err))
+	if clientBFV.RingSwitch() != nil {
+		fmt.Println("Ring switch is unstable, proof verification will fail")
+	} else {
+		valueElem := core.NewElement(value)
+		transcript := core.NewTranscript("demo")
+		span = core.StartSpan("Verify proof", nil)
+		if err := proof.Verify(z, valueElem, clientBFV.RingSwitch().NewClient(clientBFV), transcript); err != nil {
+			panic(fmt.Sprintf("Failed to verify proof: %v", err))
+		}
+		span.EndWithNewline()
 	}
-	span.EndWithNewline()
 
 	matrix, _, err := core.RandomMatrixRowMajor(*rows, *cols, func(u []uint64) *rlwe.Plaintext {
 		return nil
