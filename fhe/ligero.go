@@ -513,7 +513,7 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	return proof, nil
 }
 
-func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientBFV, transcript *core.Transcript) error {
+func (p *Proof) Verify(point *core.Element, value *core.Element, field *core.PrimeField, transcript *core.Transcript) error {
 	rows := p.Metadata.Rows
 	cols := p.Metadata.Cols
 	root := p.Root
@@ -522,8 +522,8 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientB
 	transcript.SampleFields("r", r)
 
 	// Encode row inner products
-	encodedMatR := core.Encode(p.MatR, p.Metadata.RhoInv, client.Field())
-	encodedMatZ := core.Encode(p.MatZ, p.Metadata.RhoInv, client.Field())
+	encodedMatR := core.Encode(p.MatR, p.Metadata.RhoInv, field)
+	encodedMatZ := core.Encode(p.MatZ, p.Metadata.RhoInv, field)
 
 	transcript.AppendField("point", point)
 
@@ -532,19 +532,19 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientB
 	powA := core.One()
 	for i := range cols {
 		a[i] = powA
-		client.Field().MulAssign(powA, point, powA)
+		field.MulAssign(powA, point, powA)
 	}
 
 	// Generate vector `b = [1, z^m, z^(2m), ..., z^((m-1)m)]`
 	b := make([]*core.Element, rows)
-	zPow := client.Field().Pow(uint64(cols), point)
+	zPow := field.Pow(uint64(cols), point)
 	if zPow.NotEqual(powA) {
 		panic("zPow is not equal to powA")
 	}
 	powB := core.One()
 	for i := range b {
 		b[i] = powB
-		client.Field().MulAssign(powB, zPow, powB)
+		field.MulAssign(powB, zPow, powB)
 	}
 
 	extCols := cols * p.Metadata.RhoInv
@@ -555,17 +555,17 @@ func (p *Proof) Verify(point *core.Element, value *core.Element, client *ClientB
 			return fmt.Errorf("failed to verify merkle path for column %d", queryColIdx)
 		}
 
-		if core.InnerProduct(p.QueriedCols[i].Values, r, client.Field()).NotEqual(encodedMatR[queryColIdx]) {
-			fmt.Println("well-formedness R check failed for column expected", encodedMatR[queryColIdx], "got", core.InnerProduct(p.QueriedCols[i].Values, r, client.Field()))
+		if core.InnerProduct(p.QueriedCols[i].Values, r, field).NotEqual(encodedMatR[queryColIdx]) {
+			fmt.Println("well-formedness R check failed for column expected", encodedMatR[queryColIdx], "got", core.InnerProduct(p.QueriedCols[i].Values, r, field))
 			return fmt.Errorf("well-formedness R check failed for column %d", queryColIdx)
 		}
 
-		if core.InnerProduct(p.QueriedCols[i].Values, b, client.Field()).NotEqual(encodedMatZ[queryColIdx]) {
+		if core.InnerProduct(p.QueriedCols[i].Values, b, field).NotEqual(encodedMatZ[queryColIdx]) {
 			return fmt.Errorf("well-formedness B check failed for column %d", queryColIdx)
 		}
 	}
 
-	if core.InnerProduct(p.MatZ, a, client.Field()).NotEqual(value) {
+	if core.InnerProduct(p.MatZ, a, field).NotEqual(value) {
 		return fmt.Errorf(" claimed value does not match the evaluation of the committed polynomial")
 	}
 

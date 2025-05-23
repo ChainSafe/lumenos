@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	rows    = 16384
+	rows    = 2048
 	cols    = 1024
 	Modulus = 144115188075593729
 	rhoInv  = 2
-	LogN    = 14
+	LogN    = 12
 	// Modulus = 0x3ee0001
 	// Modulus = 288230376150630401
 	// Modulus = 144115188075593729 // allows LogN >= 15
@@ -68,7 +68,7 @@ func run(t *testing.T, test func(bgv.Parameters, *fhe.ServerBFV, *fhe.ClientBFV,
 }
 
 func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T, vdec bool) {
-	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, Modulus, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)
@@ -140,7 +140,7 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
 
 	span = core.StartSpan("Verify proof", nil)
-	err = proof.Verify(z, value, c, verifierTranscript)
+	err = proof.Verify(z, value, c.Field(), verifierTranscript)
 	if err != nil {
 		panic(err)
 	}
@@ -169,7 +169,7 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 }
 
 func testLigeroRLC(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t *testing.T, _ bool) {
-	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, Modulus, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := c.Encode(u, plaintext); err != nil {
 			panic(err)

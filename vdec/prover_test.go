@@ -96,7 +96,7 @@ func testVdecBatched(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.C
 	for _, c := range cases {
 		rows := c.rows
 		cols := c.cols
-		matrixColMajor, ciphertexts, err := core.RandomMatrixColMajor(rows, cols, func(u []uint64) *rlwe.Ciphertext {
+		matrixColMajor, ciphertexts, err := core.RandomMatrixColMajor(rows, cols, Modulus, func(u []uint64) *rlwe.Ciphertext {
 			plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 			if err := client.Encode(u, plaintext); err != nil {
 				panic(err)

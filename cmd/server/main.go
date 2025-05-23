@@ -172,7 +172,7 @@ func main() {
 }
 
 func generateLigeroProofFHE(params bgv.Parameters, server *fhe.ServerBFV, z *core.Element, rows, cols int) (uint64, []byte, error) {
-	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, Modulus, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := server.Encode(u, plaintext); err != nil {
 			panic(err)

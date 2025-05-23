@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
+	"runtime"
+	"runtime/debug"
 
+	"github.com/dustin/go-humanize"
 	"github.com/nulltea/lumenos/core"
 	"github.com/nulltea/lumenos/fhe"
 	"github.com/tuneinsight/lattigo/v6/core/rlwe"
@@ -44,9 +46,16 @@ func main() {
 	vdec := flag.Bool("vdec", false, "Use vdec")
 	flag.Parse()
 
+	z := core.NewElement(*point)
+
+	ptField, err := core.NewPrimeField(Modulus, *cols*2)
+	if err != nil {
+		panic(err)
+	}
+
 	// Create a custom HTTP client with increased timeouts
 	client := &http.Client{
-		Timeout: 5 * time.Minute, // Increase timeout for large responses
+		Timeout: 0,
 	}
 
 	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(*cols, *logN, Modulus)
@@ -67,11 +76,6 @@ func main() {
 	rlk := kgen.GenRelinearizationKeyNew(sk)
 
 	rotKeys := kgen.GenGaloisKeysNew(params.GaloisElementsForInnerSum(1, *rows), sk)
-
-	ptField, err := core.NewPrimeField(params.PlaintextModulus(), *cols*2)
-	if err != nil {
-		panic(err)
-	}
 
 	// Initialize the client
 	clientBFV := fhe.NewClientBFV(&ptField, params, sk)
@@ -138,7 +142,13 @@ func main() {
 
 	fmt.Println("FHE keys sent to server")
 
-	z := core.NewElement(*point)
+	// sk = nil
+	pk = nil
+	rlk = nil
+	rotKeys = nil
+	clear(reqBody)
+	reqBody = nil
+	runtime.GC()
 
 	fmt.Println("Requesting proof evaluation...")
 	resp, err = client.Get(fmt.Sprintf("%s/prove?point=%d", *serverURL, *point))
@@ -168,7 +178,11 @@ func main() {
 		panic(fmt.Sprintf("Failed to unmarshal encrypted proof: %v", err))
 	}
 
-	fmt.Printf("Received encrypted proof for P(x=%d)=%d\n", *point, value)
+	fmt.Printf("Received encrypted proof for P(x=%d)=%d | size: %s\n", *point, value, humanize.Bytes(uint64(len(payload))))
+
+	clear(payload)
+	payload = nil
+	runtime.GC()
 
 	span := core.StartSpan("Decrypt proof", nil, "Decrypting proof...")
 	proof, err := encryptedProof.Decrypt(clientBFV, *vdec, span)
@@ -183,30 +197,35 @@ func main() {
 		valueElem := core.NewElement(value)
 		transcript := core.NewTranscript("demo")
 		span = core.StartSpan("Verify proof", nil)
-		if err := proof.Verify(z, valueElem, clientBFV.RingSwitch().NewClient(clientBFV), transcript); err != nil {
+		if err := proof.Verify(z, valueElem, clientBFV.Field(), transcript); err != nil {
 			panic(fmt.Sprintf("Failed to verify proof: %v", err))
 		}
 		span.EndWithNewline()
 	}
 
-	matrix, _, err := core.RandomMatrixRowMajor(*rows, *cols, func(u []uint64) *rlwe.Plaintext {
+	proof = nil
+	encryptedProof = fhe.EncryptedProof{}
+	clientBFV = nil
+	runtime.GC()
+	debug.FreeOSMemory()
+	runtime.GC()
+
+	matrix, _, err := core.RandomMatrixRowMajor(*rows, *cols, Modulus, func(u []uint64) *rlwe.Plaintext {
 		return nil
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	// Local ligero generation for reference
-
 	ligero, err := fhe.NewLigeroCommitter(128, *rows, *cols, RhoInv)
 	if err != nil {
 		panic(err)
 	}
-	span = core.StartSpan("Ligero local generation", nil, "Ligero local generation...")
+	localSpan := core.StartSpan("Ligero local generation", nil, "Ligero local generation...")
 	referenceTranscript := core.NewTranscript("test")
-	_, err = ligero.LigeroProveReference(matrix, z, clientBFV.Field(), referenceTranscript, span)
+	_, err = ligero.LigeroProveReference(matrix, z, &ptField, referenceTranscript, localSpan)
 	if err != nil {
 		panic(err)
 	}
-	span.End()
+	localSpan.End()
 }

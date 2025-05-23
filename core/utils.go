@@ -43,7 +43,7 @@ func RingPolyToStringsCentered(ring *ring.Ring, poly ring.Poly, isMontgomery boo
 }
 
 // RandomMatrixRowMajor generates a matrix in both row-major and column-major
-func RandomMatrixRowMajor[T any](rows, cols int, batchEncoder func([]uint64) *T) ([][]*Element, []*T, error) {
+func RandomMatrixRowMajor[T any](rows, cols int, modT uint64, batchEncoder func([]uint64) *T) ([][]*Element, []*T, error) {
 	if rows <= 0 || cols <= 0 {
 		return nil, nil, fmt.Errorf("dimensions must be positive")
 	}
@@ -64,7 +64,7 @@ func RandomMatrixRowMajor[T any](rows, cols int, batchEncoder func([]uint64) *T)
 		randomBytes := make([]byte, 8*cols)
 		cipher.XORKeyStream(randomBytes, randomBytes)
 		for j := 0; j < cols; j++ {
-			rowMatrix[i][j] = NewElement(binary.LittleEndian.Uint64(randomBytes[j*8:(j+1)*8]) % 255)
+			rowMatrix[i][j] = NewElement(binary.LittleEndian.Uint64(randomBytes[j*8:(j+1)*8]) % modT)
 		}
 	}
 
@@ -81,8 +81,8 @@ func RandomMatrixRowMajor[T any](rows, cols int, batchEncoder func([]uint64) *T)
 	return rowMatrix, encodedMatrix, nil
 }
 
-func RandomMatrixColMajor[T any](rows, cols int, batchEncoder func([]uint64) *T) ([][]*Element, []*T, error) {
-	rowMatrix, encodedMatrix, err := RandomMatrixRowMajor(rows, cols, batchEncoder)
+func RandomMatrixColMajor[T any](rows, cols int, modT uint64, batchEncoder func([]uint64) *T) ([][]*Element, []*T, error) {
+	rowMatrix, encodedMatrix, err := RandomMatrixRowMajor(rows, cols, modT, batchEncoder)
 	if err != nil {
 		return nil, nil, err
 	}

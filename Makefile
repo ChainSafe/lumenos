@@ -11,8 +11,7 @@ GO_EXE_NAME = vdec_test
 # Default target: build the Go application
 all: build
 
-# Set default server URL
-REMOTE_SERVER_URL ?= "http://localhost:8080"
+
 
 # Initialize submodules and clean any stale artifacts
 init-submodules:
@@ -28,15 +27,21 @@ update-submodules:
 	@echo "--- Cleaning submodule build artifacts to prevent conflicts ---"
 	$(MAKE) -C $(C_SUBDIR)/lazer clean || true
 
+# Set default server URL
+REMOTE_SERVER_URL ?= "http://localhost:8080"
+ROWS ?= 16384
+COLS ?= 1024
+LOGN ?= 14
+
 # Build and run server
 server:
 	@echo "--- Building and running FHE server ---"
-	go run cmd/server/main.go -rows 2048 -cols 1024 -logN 14
+	go run cmd/server/main.go -rows $(ROWS) -cols $(COLS) -logN $(LOGN)
 
 # Build and run client
 client:
 	@echo "--- Building and running FHE client ---"
-	go run cmd/client/main.go -rows 2048 -cols 1024 -logN 14 -server $(REMOTE_SERVER_URL)
+	go run cmd/client/main.go -rows $(ROWS) -cols $(COLS) -logN $(LOGN) -server $(REMOTE_SERVER_URL)
 
 # Build all C dependencies
 # This relies on the Makefile in $(C_SUBDIR) (vdec/c/Makefile)
