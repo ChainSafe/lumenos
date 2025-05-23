@@ -9,10 +9,11 @@ type RingSwitch struct {
 	params        *bgv.Parameters
 	paramsNew     *bgv.Parameters
 	skNew         *rlwe.SecretKey
-	ringSwitchEvk *rlwe.EvaluationKey
+	RingSwitchEvk *rlwe.EvaluationKey
+	ParamsLit     bgv.ParametersLiteral
 }
 
-func NewRingSwitch(backend *ClientBFV, logN int) (*RingSwitch, error) {
+func NewRingSwitchClient(backend *ClientBFV, logN int) (*RingSwitch, error) {
 	paramsOld := backend.GetParameters()
 	sk := backend.SecretKey()
 	// Crucial to use the same moduli
@@ -28,12 +29,14 @@ func NewRingSwitch(backend *ClientBFV, logN int) (*RingSwitch, error) {
 	qs := []uint64{paramsOld.Q()[0]}
 	ps := []uint64{}
 
-	paramsNew, err := bgv.NewParametersFromLiteral(bgv.ParametersLiteral{
+	paramsLit := bgv.ParametersLiteral{
 		LogN:             logN,
 		Q:                qs,
 		P:                ps,
 		PlaintextModulus: paramsOld.PlaintextModulus(),
-	})
+	}
+
+	paramsNew, err := bgv.NewParametersFromLiteral(paramsLit)
 	if err != nil {
 		panic(err)
 	}
@@ -50,7 +53,7 @@ func NewRingSwitch(backend *ClientBFV, logN int) (*RingSwitch, error) {
 			BaseTwoDecomposition: &base,
 		},
 	)
-	return &RingSwitch{paramsOld, &paramsNew, skNew, ringSwitchEvk}, nil
+	return &RingSwitch{paramsOld, &paramsNew, skNew, ringSwitchEvk, paramsLit}, nil
 }
 
 func (rs *RingSwitch) NewClient(backend *ClientBFV) *ClientBFV {
@@ -80,6 +83,28 @@ func (rs *RingSwitch) RingSwitch(ct *rlwe.Ciphertext, backend *ClientBFV) (*rlwe
 		// TODO: dft.SlotsToCoeffsNew(ct, nil, SlotsToCoeffsMatrix)
 		// ct.IsBatched = false
 	}
+	if err := backend.ApplyEvaluationKey(ct, rs.RingSwitchEvk, ct2); err != nil {
+		panic(err)
+	}
+
+	return ct2, nil
+}
+
+type RingSwitchServer struct {
+	ringSwitchEvk *rlwe.EvaluationKey
+	paramsNew     bgv.Parameters
+}
+
+func NewRingSwitchServer(ringSwitchEvk *rlwe.EvaluationKey, paramsLit bgv.ParametersLiteral) (*RingSwitchServer, error) {
+	paramsNew, err := bgv.NewParametersFromLiteral(paramsLit)
+	if err != nil {
+		return nil, err
+	}
+	return &RingSwitchServer{ringSwitchEvk, paramsNew}, nil
+}
+
+func (rs *RingSwitchServer) RingSwitchNew(ct *rlwe.Ciphertext, backend *ServerBFV) (*rlwe.Ciphertext, error) {
+	ct2 := rlwe.NewCiphertext(rs.paramsNew, 1, rs.paramsNew.MaxLevel())
 	if err := backend.ApplyEvaluationKey(ct, rs.ringSwitchEvk, ct2); err != nil {
 		panic(err)
 	}

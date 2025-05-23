@@ -31,12 +31,12 @@ update-submodules:
 # Build and run server
 server:
 	@echo "--- Building and running FHE server ---"
-	go run cmd/server/main.go -rows 32768 -cols 1024 -logN 15
+	go run cmd/server/main.go -rows 2048 -cols 1024 -logN 14
 
 # Build and run client
 client:
 	@echo "--- Building and running FHE client ---"
-	go run cmd/client/main.go -rows 8192 -cols 1024 -logN 13 -server $(REMOTE_SERVER_URL)
+	go run cmd/client/main.go -rows 2048 -cols 1024 -logN 14 -server $(REMOTE_SERVER_URL)
 
 # Build all C dependencies
 # This relies on the Makefile in $(C_SUBDIR) (vdec/c/Makefile)

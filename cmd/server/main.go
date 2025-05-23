@@ -22,9 +22,11 @@ const (
 )
 
 type KeysRequest struct {
-	PublicKey          []byte   `json:"public_key"`
-	RelinearizationKey []byte   `json:"relinearization_key"`
-	RotationKeys       [][]byte `json:"rotation_keys"`
+	PublicKey          []byte                 `json:"public_key"`
+	RelinearizationKey []byte                 `json:"relinearization_key"`
+	RotationKeys       [][]byte               `json:"rotation_keys"`
+	RingSwitchEvk      []byte                 `json:"ring_switch_evk"`
+	ParamsLit          *bgv.ParametersLiteral `json:"params_lit"`
 }
 
 type ProveResponse struct {
@@ -94,6 +96,24 @@ func main() {
 		evk := rlwe.NewMemEvaluationKeySet(rlk, rotKeys...)
 
 		server = fhe.NewBackendBFV(&ptField, params, pk, evk)
+
+		if req.ParamsLit != nil {
+			fmt.Printf("Using ring switch to LogN: %d\n", req.ParamsLit.LogN)
+
+			ringSwitchEvk := rlwe.NewEvaluationKey(params)
+			if err := ringSwitchEvk.UnmarshalBinary(req.RingSwitchEvk); err != nil {
+				http.Error(w, "Invalid ring switch evaluation key", http.StatusBadRequest)
+				return
+			}
+
+			rs, err := fhe.NewRingSwitchServer(ringSwitchEvk, *req.ParamsLit)
+			if err != nil {
+				http.Error(w, "Failed to create ring switch server", http.StatusInternalServerError)
+				return
+			}
+
+			server.SetRingSwitchServer(rs)
+		}
 
 		w.WriteHeader(http.StatusOK)
 	})

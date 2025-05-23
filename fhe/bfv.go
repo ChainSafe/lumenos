@@ -16,6 +16,7 @@ type ServerBFV struct {
 	*bgv.Evaluator
 	*bgv.Encoder
 	*rlwe.Encryptor
+	rs         *RingSwitchServer
 	mulCounter int
 }
 
@@ -23,7 +24,7 @@ func NewBackendBFV(plaintextField *core.PrimeField, params bgv.Parameters, pk *r
 	evaluator := bgv.NewEvaluator(params, evk) // TODO: use BFV scaleInvariant=true and use MulScaleInvariant instead of MulNew
 	encoder := bgv.NewEncoder(params)
 	encryptor := rlwe.NewEncryptor(params, pk)
-	return &ServerBFV{plaintextField, params, evaluator, encoder, encryptor, 0}
+	return &ServerBFV{plaintextField, params, evaluator, encoder, encryptor, nil, 0}
 }
 
 func (b *ServerBFV) Field() *core.PrimeField {
@@ -44,8 +45,16 @@ func (b *ServerBFV) MulCounter() int {
 	return b.mulCounter
 }
 
+func (b *ServerBFV) SetRingSwitchServer(rs *RingSwitchServer) {
+	b.rs = rs
+}
+
+func (b *ServerBFV) RingSwitch() *RingSwitchServer {
+	return b.rs
+}
+
 func (b *ServerBFV) CopyNew() *ServerBFV {
-	return &ServerBFV{b.ptField, b.params, b.Evaluator.ShallowCopy(), b.Encoder.ShallowCopy(), b.Encryptor.ShallowCopy(), b.mulCounter}
+	return &ServerBFV{b.ptField, b.params, b.Evaluator.ShallowCopy(), b.Encoder.ShallowCopy(), b.Encryptor.ShallowCopy(), b.rs, b.mulCounter}
 }
 
 type ClientBFV struct {
@@ -56,6 +65,7 @@ type ClientBFV struct {
 	*rlwe.Decryptor
 	sk *rlwe.SecretKey
 	*bgv.Evaluator
+	rs *RingSwitch
 
 	// paramsPoD *bgv.Parameters
 	// pod       *ServerBFV
@@ -67,7 +77,7 @@ func NewClientBFV(plaintextField *core.PrimeField, paramsFHE bgv.Parameters, sk 
 	encryptor := rlwe.NewEncryptor(paramsFHE, sk)
 	decryptor := rlwe.NewDecryptor(paramsFHE, sk)
 	evaluator := bgv.NewEvaluator(paramsFHE, nil)
-	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk, evaluator}
+	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk, evaluator, nil}
 }
 
 func (b *ClientBFV) SecretKey() *rlwe.SecretKey {
@@ -84,7 +94,15 @@ func (b *ClientBFV) GetRingSwitchEvk(paramsPoD bgv.Parameters) (*rlwe.Evaluation
 }
 
 func (b *ClientBFV) CopyNew() *ClientBFV {
-	return &ClientBFV{b.ptField, b.paramsFHE, b.Encoder.ShallowCopy(), b.Encryptor.ShallowCopy(), b.Decryptor.ShallowCopy(), b.sk, b.Evaluator.ShallowCopy()}
+	return &ClientBFV{b.ptField, b.paramsFHE, b.Encoder.ShallowCopy(), b.Encryptor.ShallowCopy(), b.Decryptor.ShallowCopy(), b.sk, b.Evaluator.ShallowCopy(), b.rs}
+}
+
+func (b *ClientBFV) SetRingSwitch(rs *RingSwitch) {
+	b.rs = rs
+}
+
+func (b *ClientBFV) RingSwitch() *RingSwitch {
+	return b.rs
 }
 
 // GenerateBGVParamsForNTT generates BGV parameter based on the NTT size

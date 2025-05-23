@@ -49,7 +49,7 @@ func TestRingSwitch(t *testing.T) {
 
 	fmt.Printf("ct.MetaData: IsNTT: %v, IsBatched: %v IsMontgomery: %v\n", ct.IsNTT, ct.IsBatched, ct.IsMontgomery)
 
-	rs, err := fhe.NewRingSwitch(client, 12)
+	rs, err := fhe.NewRingSwitchClient(client, 12)
 	if err != nil {
 		panic(err)
 	}

@@ -22,9 +22,11 @@ const (
 )
 
 type KeysRequest struct {
-	PublicKey          []byte   `json:"public_key"`
-	RelinearizationKey []byte   `json:"relinearization_key"`
-	RotationKeys       [][]byte `json:"rotation_keys"`
+	PublicKey          []byte                 `json:"public_key"`
+	RelinearizationKey []byte                 `json:"relinearization_key"`
+	RotationKeys       [][]byte               `json:"rotation_keys"`
+	RingSwitchEvk      []byte                 `json:"ring_switch_evk"`
+	ParamsLit          *bgv.ParametersLiteral `json:"params_lit"`
 }
 
 type ProveResponse struct {
@@ -38,6 +40,8 @@ func main() {
 	rows := flag.Int("rows", 2048, "Number of rows in the matrix")
 	cols := flag.Int("cols", 1024, "Number of columns in the matrix")
 	logN := flag.Int("logN", 13, "LogN")
+	ringSwitchLogN := flag.Int("ringSwitchLogN", -1, "Ring switch logN (optional)")
+	vdec := flag.Bool("vdec", false, "Use vdec")
 	flag.Parse()
 
 	// Create a custom HTTP client with increased timeouts
@@ -72,6 +76,13 @@ func main() {
 	// Initialize the client
 	clientBFV := fhe.NewClientBFV(&ptField, params, sk)
 
+	rs, err := fhe.NewRingSwitchClient(clientBFV, 10)
+	if err != nil {
+		panic(err)
+	}
+
+	clientBFV.SetRingSwitch(rs)
+
 	// Send keys to server
 	pkBytes, err := pk.MarshalBinary()
 	if err != nil {
@@ -95,6 +106,19 @@ func main() {
 		PublicKey:          pkBytes,
 		RelinearizationKey: rlkBytes,
 		RotationKeys:       rotKeysBytes,
+	}
+
+	// Check if ringSwitchLogN was set
+	if *ringSwitchLogN != -1 {
+		fmt.Printf("Request to use ring switch to LogN: %d\n", *ringSwitchLogN)
+
+		ringSwitchEvkBytes, err := rs.RingSwitchEvk.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+
+		keysReq.RingSwitchEvk = ringSwitchEvkBytes
+		keysReq.ParamsLit = &rs.ParamsLit
 	}
 
 	reqBody, err := json.Marshal(keysReq)
@@ -147,7 +171,7 @@ func main() {
 	fmt.Printf("Received encrypted proof for P(x=%d)=%d\n", *point, value)
 
 	span := core.StartSpan("Decrypt proof", nil, "Decrypting proof...")
-	proof, err := encryptedProof.Decrypt(clientBFV, true, span)
+	proof, err := encryptedProof.Decrypt(clientBFV, *vdec, span)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to decrypt proof: %v", err))
 	}

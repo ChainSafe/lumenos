@@ -311,6 +311,13 @@ func matrixInnerSumEval(matrix []*rlwe.Ciphertext, plaintext *rlwe.Plaintext, ro
 				}
 
 				// TODO: ring switch to discard garbage slots
+				if backend.RingSwitch() != nil {
+					col, err = backend.RingSwitch().RingSwitchNew(col, backend)
+					if err != nil {
+						resultChan <- matrixElementResult{index: i, err: err}
+						continue
+					}
+				}
 
 				resultChan <- matrixElementResult{index: i, col: col}
 			}
@@ -441,9 +448,14 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 
 	// Concurrent decryption of MatR and MatZ
 	go func() {
+		useClient := client.CopyNew()
+		if client.RingSwitch() != nil {
+			useClient = client.RingSwitch().NewClient(client)
+		}
+
 		matR, err := decryptBatchedParallel(
 			p.MatR,
-			client,
+			useClient,
 			func(encoder *bgv.Encoder, pt *rlwe.Plaintext) (*core.Element, error) {
 				return decodeSingleElement(encoder, pt)
 			},
@@ -456,9 +468,14 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	}()
 
 	go func() {
+		useClient := client.CopyNew()
+		if client.RingSwitch() != nil {
+			useClient = client.RingSwitch().NewClient(client)
+		}
+
 		matZ, err := decryptBatchedParallel(
 			p.MatZ,
-			client,
+			useClient,
 			func(encoder *bgv.Encoder, pt *rlwe.Plaintext) (*core.Element, error) {
 				return decodeSingleElement(encoder, pt)
 			},
