@@ -6,16 +6,15 @@ This project aims to develop and validate Private Proof Delegation via server-si
 
 - Linux amd64 / x86-64 system
 - avx512 and aes instruction set extensions
-- kernel version >= 4.18
 - Go 1.23
-- gcc compiler >= 13.2
-- make >= 4.2, cmake >= 3.26
+- gcc g++ make cmake libgmp-dev libmpfr-dev unzip
 
 ## Run
 
 ### Build
 
 ```bash
+git submodule update --init --recursive
 make build
 export LD_LIBRARY_PATH=./vdec/c
 ```
