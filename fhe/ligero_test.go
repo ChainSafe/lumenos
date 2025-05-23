@@ -136,11 +136,18 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 	poly := core.NewDensePolyFromMatrix(matrix)
 	value := poly.Evaluate(s.Field(), z)
 
-	proof, err := encryptedProof.Decrypt(c, vdec, span)
+	proof, err := encryptedProof.Decrypt(c, span)
 	if err != nil {
 		panic(err)
 	}
 	span.EndWithNewline()
+
+	if vdec {
+		err = proof.ProveDecrypt(c, span)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	fmt.Printf("Number of multiplications: %d\n", s.MulCounter())
 

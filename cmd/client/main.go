@@ -189,9 +189,21 @@ func main() {
 	runtime.GC()
 
 	span := core.StartSpan("Decrypt proof", nil, "Decrypting proof...")
-	proof, err := encryptedProof.Decrypt(clientBFV, *vdec, span)
+	proof, err := encryptedProof.Decrypt(clientBFV, span)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to decrypt proof: %v", err))
+	}
+
+	encryptedProof = fhe.EncryptedProof{}
+	runtime.GC()
+	debug.FreeOSMemory()
+	runtime.GC()
+
+	if *vdec {
+		err = proof.ProveDecrypt(clientBFV, span)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to prove decrypt: %v", err))
+		}
 	}
 
 	if clientBFV.RingSwitch() != nil {

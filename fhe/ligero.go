@@ -378,7 +378,7 @@ type Proof struct {
 	MerklePaths []core.MerklePath
 }
 
-func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.Span) (*Proof, error) {
+func (p EncryptedProof) Decrypt(client *ClientBFV, ctx *core.Span) (*Proof, error) {
 	rows := p.Metadata.Rows
 
 	// Decrypt queried columns
@@ -489,18 +489,6 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	span.End()
 	ctx.EndWithNewline()
 
-	if verifiable {
-		span = core.StartSpan("Verifiable decrypt", nil, "Verifiable decrypt...")
-		transcript := core.NewTranscript("vdec")
-
-		err := vdec.ProveBfvDecBatched(queriedColsPairs, client.SecretKey(), client.Evaluator, client.Field(), transcript, span)
-		if err != nil {
-			span.End()
-			return nil, err
-		}
-		span.End()
-	}
-
 	proof := &Proof{
 		Metadata:    p.Metadata,
 		Root:        p.Root,
@@ -511,6 +499,19 @@ func (p *EncryptedProof) Decrypt(client *ClientBFV, verifiable bool, ctx *core.S
 	}
 
 	return proof, nil
+}
+
+func (p *Proof) ProveDecrypt(client *ClientBFV, ctx *core.Span) error {
+	span := core.StartSpan("Verifiable decrypt", nil, "Verifiable decrypt...")
+	transcript := core.NewTranscript("vdec")
+
+	err := vdec.ProveBfvDecBatched(p.QueriedCols, client.SecretKey(), client.Evaluator, client.Field(), transcript, span)
+	if err != nil {
+		span.End()
+		panic(err)
+	}
+	span.End()
+	return nil
 }
 
 func (p *Proof) Verify(point *core.Element, value *core.Element, field *core.PrimeField, transcript *core.Transcript) error {

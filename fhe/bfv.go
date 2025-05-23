@@ -164,7 +164,7 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 	if numQPrimes > 0 {
 		logQ[0] = 58 // First prime largest
 		for i := 1; i < numQPrimes; i++ {
-			logQ[i] = 56 // Subsequent primes slightly smaller
+			logQ[i] = 54 // Subsequent primes slightly smaller
 		}
 	}
 
@@ -174,7 +174,7 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 	// Generate LogP slice: Use [60, 60, ...] pattern
 	logP := make([]int, numPPrimes)
 	for i := 0; i < numPPrimes; i++ {
-		logP[i] = 60
+		logP[i] = 55
 	}
 
 	paramsLit := bgv.ParametersLiteral{
