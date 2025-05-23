@@ -86,11 +86,6 @@ func testLigeroE2E(params bgv.Parameters, s *fhe.ServerBFV, c *fhe.ClientBFV, t 
 		panic(err)
 	}
 
-	ligero.Queries, err = fhe.CalculateQueriesBCI20(80, rhoInv, rows, Modulus)
-	if err != nil {
-		panic(err)
-	}
-
 	println("Number of queried columns:", ligero.Queries)
 
 	// Encrypt the batched columns
