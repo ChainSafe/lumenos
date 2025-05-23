@@ -29,10 +29,11 @@ update-submodules:
 
 # Set default server URL
 REMOTE_SERVER_URL ?= "http://localhost:8080"
-ROWS ?= 8192
+ROWS ?= 16384
 COLS ?= 4096
-LOGN ?= 13
+LOGN ?= 14
 RING_SWITCH_LOGN ?= -1
+IS_GBFV ?= false
 
 # Build and run server
 server:
@@ -49,7 +50,12 @@ client:
 # to correctly build libvdecapi.so and all its own dependencies.
 build_c:
 	@echo "--- Building C dependencies in $(C_SUBDIR) ---"
+ifeq ($(IS_GBFV),true)
+	echo "Building GBFV version"
+	$(MAKE) -C $(C_SUBDIR) VDEC_SCRIPT=vdec_gbfv.c all
+else
 	$(MAKE) -C $(C_SUBDIR) all
+endif
 
 # Build the Go application
 # This depends on the C dependencies being built first.

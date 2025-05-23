@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 
@@ -39,6 +40,7 @@ func main() {
 	rows := flag.Int("rows", 2048, "Number of rows in the matrix")
 	cols := flag.Int("cols", 1024, "Number of columns in the matrix")
 	logN := flag.Int("logN", 13, "LogN")
+	benchMode := flag.Bool("benchMode", false, "Benchmark mode") // stops server after proving
 	flag.Parse()
 
 	paramsLiteral, err := fhe.GenerateBGVParamsForNTT(*cols, *logN, Modulus)
@@ -163,6 +165,10 @@ func main() {
 			return
 		}
 		w.(http.Flusher).Flush()
+
+		if *benchMode {
+			os.Exit(0)
+		}
 	})
 
 	fmt.Printf("FHE Server started on :%d (rows=%d, cols=%d, logN=%d)...\n", *port, *rows, *cols, *logN)
