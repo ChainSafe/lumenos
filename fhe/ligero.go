@@ -817,7 +817,7 @@ func (c *LigeroCommitter) LigeroProveReference(matrix [][]*core.Element, point *
 		}
 
 		resultChan := make(chan encodingResult, rows)
-		numWorkers := determineOptimalWorkers(rows)
+		numWorkers := determineOptimalWorkers(rows) / 2
 		workChan := make(chan int, rows)
 
 		var wg sync.WaitGroup

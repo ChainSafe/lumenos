@@ -9,7 +9,7 @@ Ring Switch LogN: -1
 IS_GBFV: false
 VDEC: true
 Server URL: http://18.224.200.45:8080
-Timestamp: Mon May 26 09:22:35 UTC 2025
+Timestamp: Mon May 26 12:19:54 UTC 2025
 ==========================================
 
 Starting client for matrix: 2048 x 1024, logN: 12
@@ -20,25 +20,25 @@ FHE keys sent to server
 Requesting proof evaluation...
 Received encrypted proof for P(x=1)=59828798142202325 | size: 310 MB
 Decrypting proof...
-  Decrypt queried columns (96.671286ms)
-  Decrypt row inner products (532.395398ms)
-Decrypt proof (629.169791ms)
+  Decrypt queried columns (103.816269ms)
+  Decrypt row inner products (562.615296ms)
+Decrypt proof (666.568824ms)
 
 Verifiable decrypt...
-  Batching decrypted columns (493.711397ms)
-  Batching ciphertexts (242.763924ms)
-  Witness generation (9.186475ms)
-  Proof generation (23.860279025s)
-Verifiable decrypt (24.627588949s)
-Verify proof (154.237899ms)
+  Batching decrypted columns (499.14863ms)
+  Batching ciphertexts (256.122358ms)
+  Witness generation (9.401043ms)
+  Proof generation (27.736729878s)
+Verifiable decrypt (28.524155434s)
+Verify proof (160.202535ms)
 
 Ligero local generation...
   Ligero commit
-    Encode (2.498035241s)
-    Merkle tree (837.883474ms)
+    Encode (2.757908662s)
+    Merkle tree (944.196044ms)
   Ligero prove
-    Compute inner products R (239.615827ms)
-    Compute inner products B (189.925204ms)
-    Query columns (545.473µs)
-  Ligero prove (430.16156ms)
-Ligero local generation (3.76620289s)
+    Compute inner products R (232.232855ms)
+    Compute inner products B (208.629886ms)
+    Query columns (730.871µs)
+  Ligero prove (441.746088ms)
+Ligero local generation (4.144335415s)
