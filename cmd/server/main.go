@@ -64,6 +64,13 @@ func main() {
 
 	// Create HTTP server
 	http.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
+		if *benchMode {
+			defer func() {
+				time.Sleep(100 * time.Millisecond)
+				os.Exit(0)
+			}()
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -166,13 +173,6 @@ func main() {
 			return
 		}
 		w.(http.Flusher).Flush()
-
-		if *benchMode {
-			go func() {
-				time.Sleep(100 * time.Millisecond)
-				os.Exit(0)
-			}()
-		}
 	})
 
 	fmt.Printf("FHE Server started on :%d (rows=%d, cols=%d, logN=%d)...\n", *port, *rows, *cols, *logN)

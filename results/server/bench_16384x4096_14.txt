@@ -1,0 +1,38 @@
+==========================================
+FHE Server Benchmark Results
+==========================================
+Case: 16384x4096_14
+ROWS: 16384
+COLS: 4096
+LOGN: 14
+RING_SWITCH_LOGN: -1
+IS_GBFV: false
+VDEC: true
+Timestamp: Mon May 26 09:29:41 UTC 2025
+==========================================
+
+LogN: 14
+ModQ chain length 12
+FHE Server started on :8080 (rows=16384, cols=4096, logN=14)...
+Encrypt matrix (1m7.188207503s)
+Number of queried columns: 309
+Commit FHE evaluation...
+  Encode (2m23.35218071s)
+  Merkle tree built (18.85339004s)
+Commit FHE evaluation (2m42.205672741s)
+
+Prove FHE evaluation...
+  InnerProduct(Matrix, b) (4m9.444738953s)
+  InnerProduct(Matrix, r) (4m9.485619246s)
+  Query columns (7.639996852s)
+Prove FHE evaluation (4m17.140122073s)
+
+Marshaled MatR: 2.1 GB
+Marshaled MatZ: 2.1 GB
+Marshaled QueriedCols: 162 MB
+Marshal proof (2.211764789s)
+
+Marshaled encrypted proof length: 4.5 GB
+Evaluate polynomial (686.131288ms)
+
+Failed to write payload: write tcp 156.81.30.202:8080->3.18.107.106:53708: write: connection reset by peer

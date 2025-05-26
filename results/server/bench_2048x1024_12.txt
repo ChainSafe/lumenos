@@ -1,0 +1,37 @@
+==========================================
+FHE Server Benchmark Results
+==========================================
+Case: 2048x1024_12
+ROWS: 2048
+COLS: 1024
+LOGN: 12
+RING_SWITCH_LOGN: -1
+IS_GBFV: false
+VDEC: true
+Timestamp: Mon May 26 09:22:20 UTC 2025
+==========================================
+
+LogN: 12
+ModQ chain length 10
+FHE Server started on :8080 (rows=2048, cols=1024, logN=12)...
+Encrypt matrix (3.290367573s)
+Number of queried columns: 309
+Commit FHE evaluation...
+  Encode (5.23385987s)
+  Merkle tree built (1.036259108s)
+Commit FHE evaluation (6.270237182s)
+
+Prove FHE evaluation...
+  InnerProduct(Matrix, b) (8.536877277s)
+  InnerProduct(Matrix, r) (8.54264579s)
+  Query columns (1.094868959s)
+Prove FHE evaluation (9.639798454s)
+
+Marshaled MatR: 135 MB
+Marshaled MatZ: 135 MB
+Marshaled QueriedCols: 41 MB
+Marshal proof (154.801389ms)
+
+Marshaled encrypted proof length: 310 MB
+Evaluate polynomial (19.386089ms)
+
