@@ -13,8 +13,6 @@
 #define GBFV 1      /* if using BFV instead, set to 0 (changes rotation function) */
 #define DEGREE 3078 /* fhe degree */
 
-#include "vdec_ct_lattigo.h"
-
 /* Number of elements in an n x n (upper) diagonal matrix. */
 #define NELEMS_DIAG(n) (((n) * (n) - (n)) / 2 + (n))
 
