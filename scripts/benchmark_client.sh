@@ -11,6 +11,7 @@ IS_GBFV=${IS_GBFV:-false}
 VDEC=${VDEC:-true}
 REMOTE_SERVER_URL=${REMOTE_SERVER_URL:-"http://localhost:8080"}
 RESULTS_DIR=${RESULTS_DIR:-"results"}
+HARDWARE=${HARDWARE:-"m6i.large"}
 
 echo "Environment configuration:"
 echo "RING_SWITCH_LOGN: $RING_SWITCH_LOGN"
@@ -18,6 +19,7 @@ echo "IS_GBFV: $IS_GBFV"
 echo "VDEC: $VDEC"
 echo "REMOTE_SERVER_URL: $REMOTE_SERVER_URL"
 echo "RESULTS_DIR: $RESULTS_DIR"
+echo "HARDWARE: $HARDWARE"
 echo ""
 
 # Build with make first
@@ -72,6 +74,7 @@ for config in "${CONFIGURATIONS[@]}"; do
         echo "IS_GBFV: $IS_GBFV"
         echo "VDEC: $VDEC"
         echo "Server URL: $REMOTE_SERVER_URL"
+        echo "Hardware: $HARDWARE"
         echo "Timestamp: $(date)"
         echo "=========================================="
         echo ""

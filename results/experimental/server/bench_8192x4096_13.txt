@@ -8,6 +8,7 @@ LOGN: 13
 RING_SWITCH_LOGN: 10
 IS_GBFV: true
 VDEC: true
+Hardware: m7i.8xlarge
 Timestamp: Mon May 26 13:52:34 UTC 2025
 ==========================================
 

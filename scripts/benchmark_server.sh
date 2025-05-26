@@ -10,12 +10,14 @@ RING_SWITCH_LOGN=${RING_SWITCH_LOGN:--1}
 IS_GBFV=${IS_GBFV:-false}
 VDEC=${VDEC:-true}
 RESULTS_DIR=${RESULTS_DIR:-"results"}
+HARDWARE=${HARDWARE:-"m7i.8xlarge"}
 
 echo "Environment configuration:"
 echo "RING_SWITCH_LOGN: $RING_SWITCH_LOGN"
 echo "IS_GBFV: $IS_GBFV"
 echo "VDEC: $VDEC"
 echo "RESULTS_DIR: $RESULTS_DIR"
+echo "HARDWARE: $HARDWARE"
 echo ""
 
 # Build with make first
@@ -69,6 +71,7 @@ for config in "${CONFIGURATIONS[@]}"; do
         echo "RING_SWITCH_LOGN: $RING_SWITCH_LOGN"
         echo "IS_GBFV: $IS_GBFV"
         echo "VDEC: $VDEC"
+        echo "Hardware: $HARDWARE"
         echo "Timestamp: $(date)"
         echo "=========================================="
         echo ""

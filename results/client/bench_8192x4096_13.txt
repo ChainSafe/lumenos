@@ -9,7 +9,8 @@ Ring Switch LogN: -1
 IS_GBFV: false
 VDEC: true
 Server URL: http://18.224.200.45:8080
-Timestamp: Mon May 26 12:59:16 UTC 2025
+Hardware: m6i.large
+Timestamp: Mon May 26 12:56:34 UTC 2025
 ==========================================
 
 Starting client for matrix: 8192 x 4096, logN: 13
