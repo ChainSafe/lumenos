@@ -9,13 +9,13 @@ set -e
 RING_SWITCH_LOGN=${RING_SWITCH_LOGN:--1}
 IS_GBFV=${IS_GBFV:-false}
 VDEC=${VDEC:-true}
-PREFIX=${PREFIX:-""}
+RESULTS_DIR=${RESULTS_DIR:-"results"}
 
 echo "Environment configuration:"
 echo "RING_SWITCH_LOGN: $RING_SWITCH_LOGN"
 echo "IS_GBFV: $IS_GBFV"
 echo "VDEC: $VDEC"
-echo "PREFIX: $PREFIX"
+echo "RESULTS_DIR: $RESULTS_DIR"
 echo ""
 
 # Build with make first
@@ -25,7 +25,7 @@ export CGO_CFLAGS="-w"
 make build IS_GBFV=$IS_GBFV 2>/dev/null || make build IS_GBFV=$IS_GBFV
 
 # Create results directory
-mkdir -p results/server
+mkdir -p $RESULTS_DIR/server
 
 # Define configurations
 # Format: ROWS,COLS,LOGN
@@ -33,7 +33,7 @@ CONFIGURATIONS=(
     "2048,1024,12"
     "4096,2048,12"
     "8192,4096,13"
-    # "16384,4096,14"
+    "16384,4096,14"
 )
 
 echo "Starting server benchmark collection..."
@@ -52,7 +52,7 @@ for config in "${CONFIGURATIONS[@]}"; do
     echo "=========================================="
     
     # Create output file
-    OUTPUT_FILE="results/server/${PREFIX}bench_${CASE_NAME}.txt"
+    OUTPUT_FILE="$RESULTS_DIR/server/bench_${CASE_NAME}.txt"
     
     echo "Output file: $OUTPUT_FILE"
     echo "Starting server with benchMode=true..."
@@ -94,5 +94,5 @@ done
 echo ""
 echo "=========================================="
 echo "Server benchmark collection completed!"
-echo "Results saved in: results/server/"
+echo "Results saved in: $RESULTS_DIR/server/"
 echo "==========================================" 

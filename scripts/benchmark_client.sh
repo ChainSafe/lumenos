@@ -10,14 +10,14 @@ RING_SWITCH_LOGN=${RING_SWITCH_LOGN:--1}
 IS_GBFV=${IS_GBFV:-false}
 VDEC=${VDEC:-true}
 REMOTE_SERVER_URL=${REMOTE_SERVER_URL:-"http://localhost:8080"}
-PREFIX=${PREFIX:-""}
+RESULTS_DIR=${RESULTS_DIR:-"results"}
 
 echo "Environment configuration:"
 echo "RING_SWITCH_LOGN: $RING_SWITCH_LOGN"
 echo "IS_GBFV: $IS_GBFV"
 echo "VDEC: $VDEC"
 echo "REMOTE_SERVER_URL: $REMOTE_SERVER_URL"
-echo "PREFIX: $PREFIX"
+echo "RESULTS_DIR: $RESULTS_DIR"
 echo ""
 
 # Build with make first
@@ -27,15 +27,15 @@ export CGO_CFLAGS="-w"
 make build IS_GBFV=$IS_GBFV 2>/dev/null || make build IS_GBFV=$IS_GBFV
 
 # Create results directory
-mkdir -p results/client
+mkdir -p $RESULTS_DIR/client
 
 # Define configurations
 # Format: ROWS,COLS,LOGN
 CONFIGURATIONS=(
-    # "2048,1024,12"
-    # "4096,2048,12"
+    "2048,1024,12"
+    "4096,2048,12"
     "8192,4096,13"
-    # "16384,4096,14"
+    "16384,4096,14"
 )
 
 echo "Starting client benchmark collection..."
@@ -55,7 +55,7 @@ for config in "${CONFIGURATIONS[@]}"; do
     echo "=========================================="
     
     # Create output file
-    OUTPUT_FILE="results/client/${PREFIX}bench_${CASE_NAME}.txt"
+    OUTPUT_FILE="$RESULTS_DIR/client/bench_${CASE_NAME}.txt"
     
     echo "Output file: $OUTPUT_FILE"
     
@@ -109,5 +109,5 @@ done
 echo ""
 echo "=========================================="
 echo "Client benchmark collection completed!"
-echo "Results saved in: results/client/"
+echo "Results saved in: $RESULTS_DIR/client/"
 echo "==========================================" 
