@@ -10,7 +10,7 @@ RING_SWITCH_LOGN=${RING_SWITCH_LOGN:--1}
 IS_GBFV=${IS_GBFV:-false}
 VDEC=${VDEC:-true}
 REMOTE_SERVER_URL=${REMOTE_SERVER_URL:-"http://localhost:8080"}
-RESULTS_DIR=${RESULTS_DIR:-"results"}
+RESULTS_DIR=${RESULTS_DIR:-"results/baseline"}
 HARDWARE=${HARDWARE:-"m6i.large"}
 
 echo "Environment configuration:"

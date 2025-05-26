@@ -9,7 +9,7 @@ set -e
 RING_SWITCH_LOGN=${RING_SWITCH_LOGN:--1}
 IS_GBFV=${IS_GBFV:-false}
 VDEC=${VDEC:-true}
-RESULTS_DIR=${RESULTS_DIR:-"results"}
+RESULTS_DIR=${RESULTS_DIR:-"results/baseline"}
 HARDWARE=${HARDWARE:-"m7i.8xlarge"}
 
 echo "Environment configuration:"

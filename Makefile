@@ -1,95 +1,147 @@
-# Makefile for building the vdec Go application and its C dependencies.
-# This Makefile is intended to be run from the workspace root directory.
+# LUMENOS: Private Proof Delegation with FHE-SNARKs
 
-VDEC_DIR = vdec
-C_SUBDIR = $(VDEC_DIR)/c
-GO_SOURCE = main.go
-GO_EXE_NAME = vdec_test
+This project aims to develop and validate Private Proof Delegation via server-side FHE-evaluated SNARKs over encrypted single-client or private shared witness and untrusted public verifiability.
 
-.PHONY: all build_c build_go run clean clean_c clean_go build html server client init-submodules update-submodules
+## Documentation
+- Analysis ["SNARK-FHE vs FHE-SNARK for Private Proof Delegation"](https://hackmd.io/@timofey/r1FuxwVsJg)
+- Proposal ["PPD via FHE-SNARK"](https://hackmd.io/@timofey/rJbH6Ex3yg)
 
-# Default target: build the Go application
-all: build
+## Requirements
 
+- Linux amd64 / x86-64 system
+- avx512 and aes instruction set extensions
+- Go 1.23
+- gcc g++ make cmake libgmp-dev libmpfr-dev unzip
 
+## Run
 
-# Initialize submodules and clean any stale artifacts
-init-submodules:
-	@echo "--- Initializing submodules ---"
-	git submodule update --init --recursive
-	@echo "--- Cleaning submodule build artifacts to prevent conflicts ---"
-	$(MAKE) -C $(C_SUBDIR)/lazer clean || true
+### Build
 
-# Update submodules to latest and clean artifacts
-update-submodules:
-	@echo "--- Updating submodules to latest ---"
-	git submodule update --remote --merge
-	@echo "--- Cleaning submodule build artifacts to prevent conflicts ---"
-	$(MAKE) -C $(C_SUBDIR)/lazer clean || true
+```bash
+make init-submodules build
+export LD_LIBRARY_PATH=./vdec/c
+```
 
-# Set default server URL
-REMOTE_SERVER_URL ?= "http://localhost:8080"
-ROWS ?= 4096
-COLS ?= 1024
-LOGN ?= 12
-RING_SWITCH_LOGN ?= -1
-IS_GBFV ?= false
+### Test
 
-# Build and run server
-server:
-	@echo "--- Building and running FHE server ---"
-	go run cmd/server/main.go -rows $(ROWS) -cols $(COLS) -logN $(LOGN)
+```bash
+go test -v -run TestLigeroPPD github.com/nulltea/lumenos/fhe
+```
 
-# Build and run client
-client:
-	@echo "--- Building and running FHE client ---"
-	go run cmd/client/main.go -rows $(ROWS) -cols $(COLS) -logN $(LOGN) -server $(REMOTE_SERVER_URL) -vdec -ringSwitchLogN $(RING_SWITCH_LOGN)
+### Demo
 
-# Build all C dependencies
-# This relies on the Makefile in $(C_SUBDIR) (vdec/c/Makefile)
-# to correctly build libvdecapi.so and all its own dependencies.
-build_c:
-	@echo "--- Building C dependencies in $(C_SUBDIR) ---"
-ifeq ($(IS_GBFV),true)
-	echo "Building GBFV version"
-	$(MAKE) -C $(C_SUBDIR) VDEC_SCRIPT=vdec_gbfv.c all
-else
-	$(MAKE) -C $(C_SUBDIR) all
-endif
+Run server:
 
-# Build the Go application
-# This depends on the C dependencies being built first.
-build_go: build_c
-	@echo "--- Building Go application ($(GO_SOURCE)) ---"
-	go build -o $(GO_EXE_NAME) $(GO_SOURCE)
-	@echo "Go executable created: $(PWD)/$(GO_EXE_NAME)"
+```bash
+make server
+```
 
-# Target to explicitly build the Go application (same as build_go, common name)
-build: build_c
-	@echo "Run:\nexport LD_LIBRARY_PATH=$(PWD)/$(C_SUBDIR)"
+Run client
+```
+make client REMOTE_SERVER_URL=http://<IP>:8080
+```
 
-# Run the Go application
-# Ensures the application is built before running.
-run: build
-	@echo "--- Running Go application ($(PWD)/$(GO_EXE_NAME)) ---"
-	LD_LIBRARY_PATH=$(PWD)/$(C_SUBDIR):$(PWD)/$(C_SUBDIR)/lazer:$$LD_LIBRARY_PATH ./$(GO_EXE_NAME)
+## Benchmarks
 
-# Clean C build artifacts
-clean_c:
-	@echo "--- Cleaning C build artifacts in $(C_SUBDIR) ---"
-	$(MAKE) -C $(C_SUBDIR) clean
+- BGV params based on [`GenerateBGVParamsForNTT`](https://github.com/ChainSafe/lumenos/blob/ccaafb29b205f5e8d2c44f11761684303a3d7f2b/fhe/bfv.go#L121-L188) heuristic
+  - Plaintext prime: `144115188075593729` ($2^{57} – 2^{18} + 1$, $57$ bits)
+  - LogN `max(12, log2(ROWS))` (see table)
+  - LogQ `len([58, 56, 56, ... ])=log2(nttSize)`
+  - LogP `[55,55]`
+- Number of queries `306` (according to ref. [implementation](https://github.com/reilabs/ProveKit/blob/ea95eb6494da2514c573c73bd0449cd2c3d39526/delegated-spartan/src/pcs/ligero.rs#L33-L34))
 
-# Clean Go build artifacts (the executable)
-clean_go:
-	@echo "--- Cleaning Go executable ($(GO_EXE_NAME)) ---"
-	rm -f $(GO_EXE_NAME)
+### Server
 
-# Clean all build artifacts (both C and Go)
-clean: clean_c clean_go
-	@echo "--- All build artifacts cleaned ---"
+| **Dimension**                        | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
+| :---------------------------- | :-------------------- | :-------------------- | :-------------------- | :--------------------- |
+| **LogN** | 12         | 12         | 13         | 14          |
+| **Encode eval** | 5.17s      | 12.63s     | 1m 6.78s   | 2m 22.73s   |
+| **Commit eval** | 1.03s      | 2.04s      | 9.17s      | 18.79s      |
+| **Inner product eval** | 8.51s      | 22.74s     | 1m 49.60s  | 4m 7.48s    |
+| **Query cols eval** | 1.10s      | 1.42s      | 3.55s      | 7.63s       |
+| **Prove eval total** | 9.61s      | 24.17s     | 1m 53.16s  | 4m 15.12s   |
+| **$ct[\langle r_i,M_{i,j}\rangle]$** | 135 MB     | 269 MB     | 1.1 GB     | 2.1 GB      |
+| **$ct[\hat{M}_{i,j}] i \in \lambda$** | 41 MB      | 41 MB      | 81 MB      | 162 MB      |
+| **Proof size** | 310 MB     | 579 MB     | 2.2 GB     | 4.5 GB      |
+| **Peak RAM (GB)** | 5.74 GB    | 10.79 GB   | 41.23 GB   | 79.43 GB    |
 
-lazer/src/lazer_static.o: $(LIBSOURCES) lazer/lazer.h $(FALCON_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(FALCON_DIR) -I. -Ilazer -c -o lazer/src/lazer_static.o lazer/src/lazer.c
+Hardware: m7i.8xlarge, 32 vCPUs 128GB RAM
 
-lazer/src/lazer_shared.o: $(LIBSOURCES) lazer/lazer.h $(FALCON_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(FALCON_DIR) -I. -Ilazer -c -fPIC -o lazer/src/lazer_shared.o lazer/src/lazer.c 
+### Client
+
+| **Dimension**                        | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
+| :-------------------------------------- | :-------------------- | :-------------------- | :-------------------- | :--------------------- |
+| **LogN** | 12          | 12          | 13          | 14          |
+| **Keys** | 69 MB       | 103 MB      | 237 MB      | 504 MB      |
+| **Encrypted proof size** | 310 MB      | 579 MB      | 2.2 GB      | 4.5 GB      |
+| **Decrypt $ct[\hat{M}_{i,j}] i \in \lambda$** | 95.85ms     | 107.73ms    | 220.10ms    | 513.26ms    |
+| **Decrypt $ct[\langle r_i,M_{i,j}\rangle]$** | 531.57ms    | 1.05s       | 4.32s       | 47.53s      |
+| **Decrypt total** | 627.49ms    | 1.16s       | 4.54s       | 48.05s      |
+| **Batch ciphertexts** | 239.94ms    | 261.73ms    | 593.67ms    | 1.32s       |
+| **PoD prover** | 22.96s      | 22.82s      | 22.82s      | 22.70s      |
+| **Public verifier** | 151.94ms    | 197.06ms    | 389.39ms    | 804.64ms    |
+| **Ligero local** | 3.89s       | 16.81s      | 1m 20.69s   | 14m 21.94s  |
+| **Peak RAM (GB)** | 1.05 GB     | 1.83 GB     | 6.34 GB     | 7.18 GB     |
+
+Hardware: m7i.8xlarge, 2 vCPUs 8GB RAM
+
+### Experimental
+
+- Same hardware as above.
+- Server performs ring switch to LogN: 10 for inner product ciphertexts $ct[\langle r_i,M_{i,j}\rangle]$.
+  - Note: correct deployment requires SlotsToCoeff ("unbatching") before ring switch which is not yet implemented for BFV. Verification is skipped because of this.
+- PoD prover runs optimized GBFV version [vdec_gbfv.c](https://github.com/ChainSafe/lumenos/blob/main/vdec/c/src/vdec_gbfv.c)
+  - Note: Lattigo currently does not support GBFV. So final PoD is partially invalid ([h_our coeff](https://github.com/ChainSafe/lumenos/blob/main/vdec/c/src/vdec_gbfv.c#L915) check fails).
+
+#### Server
+
+| **Dimension** | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
+| :------------------------ | :-------- | :-------- | :-------- | :--------- |
+| **LogN** | 12        | 12        | 13        | 14         |
+| **Encode eval** | 5.16s | 12.72s | 1m 6.39s | 2m 23.12s |
+| **Commit eval** | 1.03s | 2.04s | 9.18s | 18.80s  |
+| **Inner product eval** | 8.51s | 22.65s | 1m 50.17s | 4m 8.44s  |
+| **Query cols eval** | 1.10s | 1.41s | 3.55s | 7.63s   |
+| **Prove eval total** | 9.67s | 24.32s | 1m 53.73s | 4m 16.12s |
+| **$ct[\langle r_i,M_{i,j}\rangle]$** | 17 MB | 34 MB | 68 MB | 68 MB   |
+| **$ct[\hat{M}_{i,j}] i \in \lambda$** | 41 MB | 41 MB | 81 MB | 162 MB  |
+| **Proof size** | 75 MB | 109 MB | 218 MB | 299 MB  |
+| **Peak RAM (GB)** | 5.40 GB | 10.78 GB | 41.90 GB | 79.25 GB |
+
+#### Client
+
+| **Dimension** | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
+| :-------------------------------------------- | :-------- | :-------- | :-------- | :--------- |
+| **LogN** | 12        | 12        | 13        | 14         |
+| **Keys** | 74 MB    | 110 MB   | 252 MB   | 533 MB    |
+| **Encrypted proof size** | 75 MB    | 109 MB   | 218 MB   | 299 MB    |
+| **Decrypt $ct[\hat{M}_{i,j}] i \in \lambda$** | 98.15ms  | 107.52ms | 223.39ms | 483.88ms  |
+| **Decrypt $ct[\langle r_i,M_{i,j}\rangle]$** | 72.35ms  | 146.75ms | 284.23ms | 287.14ms  |
+| **Decrypt total** | 170.58ms | 254.38ms | 507.71ms | 771.12ms  |
+| **Batch ciphertexts** | 243.19ms | 269.33ms | 595.06ms | 1.26s    |
+| **PoD prover** | 3.21s    | 3.05s    | 3.20s    | 3.20s     |
+| **Public verifier** | N/A       | N/A       | N/A       | N/A        |
+| **Ligero local** | 3.99s    | 16.66s   | 1m 20.11s | 10m 15.22s |
+| **Peak RAM (GB)** | 0.56 GB   | 1.40 GB   | 5.39 GB   | 7.05 GB    |
+
+Hardware: m6i.large
+
+Hardware: m6i.large
+
+### Run yourself
+
+Run the server:
+```bash
+./scripts/benchmark_server.sh
+```
+
+Run the client:
+```bash
+REMOTE_SERVER_URL=http://<IP>:8080 ./scripts/benchmark_client.sh
+```
+
+Run the client with ring switch and GBFV (experimental):
+```bash
+RING_SWITCH_LOGN=10 IS_GBFV=true REMOTE_SERVER_URL=http://<IP>:8080 \ 
+./scripts/benchmark_client.sh -ringSwitchLogN 10
+```
