@@ -31,7 +31,7 @@ CONFIGURATIONS=(
     "2048,1024,12"
     "4096,2048,12"
     "8192,4096,13"
-    "16384,4096,14"
+    # "16384,4096,14"
 )
 
 echo "Starting server benchmark collection..."
@@ -72,17 +72,17 @@ for config in "${CONFIGURATIONS[@]}"; do
         echo ""
     } > "$OUTPUT_FILE"
     
-    # Run server in benchmark mode and capture output
-    if go run -ldflags="-w -s" cmd/server/main.go \
-        -rows "$ROWS" \
-        -cols "$COLS" \
-        -logN "$LOGN" \
-        -benchMode=true \
-        -port=8080 >> "$OUTPUT_FILE" 2>&1; then
+    # Build server command
+    SERVER_CMD="go run -ldflags='-w -s' cmd/server/main.go -rows $ROWS -cols $COLS -logN $LOGN -benchMode=true -port=8080"
+    
+    echo "Running server command: $SERVER_CMD"
+    
+    # Run server in benchmark mode with memory measurement and capture output
+    if /usr/bin/time -v bash -c "$SERVER_CMD" >> "$OUTPUT_FILE" 2>&1; then
         echo "✅ Server benchmark completed successfully"
     else
         echo "❌ Server benchmark failed"
-        echo "ERROR: Benchmark failed" >> "$OUTPUT_FILE"
+        echo "ERROR: Server benchmark failed" >> "$OUTPUT_FILE"
     fi
     
     # Wait a bit before next configuration

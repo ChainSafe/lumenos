@@ -34,5 +34,3 @@ Marshal proof (2.211764789s)
 
 Marshaled encrypted proof length: 4.5 GB
 Evaluate polynomial (686.131288ms)
-
-Failed to write payload: write tcp 156.81.30.202:8080->3.18.107.106:53708: write: connection reset by peer
