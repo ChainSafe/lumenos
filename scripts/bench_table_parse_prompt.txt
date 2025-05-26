@@ -1,0 +1,99 @@
+Parse benchmark log files from `results/server/` and `results/client/` to create two markdown tables with the specified columns and formatting.
+
+**General Formatting Rules:**
+
+* **Time Values:** Display with 2 decimal places. If in seconds (s) and > 60s, format as 'Xm Y.YYs'. If <= 60s, use 'Y.YYs'. Millisecond (ms) values remain 'X.YYms'.
+
+* **Peak RAM:** Convert from 'Maximum resident set size (kbytes): [value]' to GB (1 GB = 1024^2 KB), display with 2 decimal places. Use 'N/A' if unavailable.
+
+* **Missing Data:** Use 'N/A' for any missing metrics, especially if a client benchmark failed. Use 'N/A' for Public verifier if it (IS_GBFV=true) ("Ring switch is unstable, proof verification will fail").
+
+**1. Server Benchmark Results Table:**
+
+(Source files: `results/server/bench_*.txt`)
+
+* **Dimension:** 'ROWS: [R]' x 'COLS: [C]'
+
+* **LogN:** 'LOGN: [value]'
+
+* **Encode eval:** 'Encode ([value])' -> Apply time formatting.
+
+* **Commit eval:** 'Merkle tree built ([value])' -> Apply time formatting.
+
+* **Inner product eval:** 'InnerProduct(Matrix, b) ([value])' -> Apply time formatting.
+
+* **Query cols eval:** 'Query columns ([value])' -> Apply time formatting.
+
+* **Prove eval total:** 'Prove FHE evaluation ([value])' -> Apply time formatting.
+
+* **$ct[\langle r_i,M_{i,j}\rangle]$:** 'Marshaled MatR: [value]'
+
+* **$ct[\hat{M}_{i,j}] i \in \lambda$:** 'Marshaled QueriedCols: [value]'
+
+* **Proof size:** 'Marshaled encrypted proof length: [value]'
+
+* **Peak RAM (GB):** Apply RAM formatting.
+
+**2. Client Benchmark Results Table:**
+
+(Source files: `results/client/bench_*.txt`)
+
+* **Dimension:** 'ROWS: [R]' x 'COLS: [C]'
+
+* **LogN:** 'LOGN: [value]'
+
+* **Keys:** 'Marshaled keys length: [value]'
+
+* **Encrypted proof size:** From '... size: [value]' (on "Received encrypted proof" line)
+
+* **Decrypt $ct[\hat{M}_{i,j}] i \in \lambda$:** 'Decrypt queried columns ([value])' -> Apply time formatting.
+
+* **Decrypt $ct[\langle r_i,M_{i,j}\rangle]$:** 'Decrypt row inner products ([value])' -> Apply time formatting.
+
+* **Decrypt total:** 'Decrypt proof ([value])' -> Apply time formatting.
+
+* **Batch ciphertexts:** 'Batching ciphertexts ([value])' -> Apply time formatting.
+
+* **PoD prover:** 'Proof generation ([value])' (under 'Verifiable decrypt...') -> Apply time formatting.
+
+* **Public verifier:** 'Verify proof ([value])' -> Apply time formatting.
+
+* **Ligero local:** 'Ligero local generation ([value])' -> Apply time formatting.
+
+* **Peak RAM (GB):** Apply RAM formatting.
+
+Order columns by dimension from smallest to largest.
+Format tables as markdown blocks as follows:
+
+```markdown
+### Server
+
+| **Dimension**                         | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
+| :------------------------------------ | :-------- | :-------- | :-------- | :--------- |
+| **LogN**                              | 12        | 12        | 13        | 14         |
+| **Encode eval**                       | 5.17s     | 12.63s    | 1m 6.78s  | 2m 22.73s  |
+| **Commit eval**                       | 1.03s     | 2.04s     | 9.17s     | 18.79s     |
+| **Inner product eval**                | 8.51s     | 22.74s    | 1m 49.60s | 4m 7.48s   |
+| **Query cols eval**                   | 1.10s     | 1.42s     | 3.55s     | 7.63s      |
+| **Prove eval total**                  | 9.61s     | 24.17s    | 1m 53.16s | 4m 15.12s  |
+| **$ct[\langle r_i,M_{i,j}\rangle]$**  | 135 MB    | 269 MB    | 1.1 GB    | 2.1 GB     |
+| **$ct[\hat{M}_{i,j}] i \in \lambda$** | 41 MB     | 41 MB     | 81 MB     | 162 MB     |
+| **Proof size**                        | 310 MB    | 579 MB    | 2.2 GB    | 4.5 GB     |
+| **Peak RAM (GB)**                     | 5.74 GB   | 10.79 GB  | 41.23 GB  | 79.43 GB   |
+
+### Client
+
+| **Dimension**                                 | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
+| :-------------------------------------------- | :-------- | :-------- | :-------- | :--------- |
+| **LogN**                                      | 12        | 12        | 13        | 14         |
+| **Keys**                                      | 69 MB     | 103 MB    | 237 MB    | 504 MB     |
+| **Encrypted proof size**                      | 310 MB    | 579 MB    | 2.2 GB    | 4.5 GB     |
+| **Decrypt $ct[\hat{M}_{i,j}] i \in \lambda$** | 95.85ms   | 107.73ms  | 220.10ms  | 513.26ms   |
+| **Decrypt $ct[\langle r_i,M_{i,j}\rangle]$**  | 531.57ms  | 1.05s     | 4.32s     | 47.53s     |
+| **Decrypt total**                             | 627.49ms  | 1.16s     | 4.54s     | 48.05s     |
+| **Batch ciphertexts**                         | 239.94ms  | 261.73ms  | 593.67ms  | 1.32s      |
+| **PoD prover**                                | 22.96s    | 22.82s    | 22.82s    | 22.70s     |
+| **Public verifier**                           | 151.94ms  | 197.06ms  | 389.39ms  | 804.64ms   |
+| **Ligero local**                              | 3.89s     | 16.81s    | 1m 20.69s | 14m 21.94s |
+| **Peak RAM (GB)**                             | 1.05 GB   | 1.83 GB   | 6.34 GB   | 7.18 GB    |
+```

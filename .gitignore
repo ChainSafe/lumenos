@@ -157,7 +157,7 @@ ENV/
 vdec_ct.h
 vdec_test
 
-vdec/vdec
+vdec/c/src/vdec
 scripts/vdec_params_generator.sage.py
 
 .vscode

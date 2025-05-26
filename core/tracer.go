@@ -37,21 +37,8 @@ func StartSpan(name string, parent *Span, message ...string) *Span {
 
 	// Print start message for root spans
 	if len(message) > 0 {
-		fmt.Printf("%s\n", strings.Join(message, " "))
-	}
-
-	return span
-}
-
-func StartOneShotSpan(name string) *Span {
-	mu.Lock()
-	defer mu.Unlock()
-
-	span := &Span{
-		name:      name,
-		startTime: time.Now(),
-		parent:    nil,
-		depth:     0,
+		indent := strings.Repeat("  ", depth)
+		fmt.Printf("%s%s\n", indent, strings.Join(message, " "))
 	}
 
 	return span

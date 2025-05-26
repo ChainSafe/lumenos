@@ -74,7 +74,7 @@ func testVdecSimple(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.Cl
 		panic(err)
 	}
 	span := core.StartSpan("Prove BfvDecBatched", nil, "Prove BfvDecBatched...")
-	vdec.CallVdecProver(seed, params, client.SecretKey(), ct, m, span)
+	vdec.CallVdecProver(seed, params, client.SecretKey(), ct, m, 2048, span)
 	span.End()
 
 	for i := range decrypted {
@@ -96,7 +96,7 @@ func testVdecBatched(params bgv.Parameters, server *fhe.ServerBFV, client *fhe.C
 	for _, c := range cases {
 		rows := c.rows
 		cols := c.cols
-		matrixColMajor, ciphertexts, err := core.RandomMatrixColMajor(rows, cols, func(u []uint64) *rlwe.Ciphertext {
+		matrixColMajor, ciphertexts, err := core.RandomMatrixColMajor(rows, cols, Modulus, func(u []uint64) *rlwe.Ciphertext {
 			plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 			if err := client.Encode(u, plaintext); err != nil {
 				panic(err)

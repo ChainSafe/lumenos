@@ -48,7 +48,7 @@ func TestBatchCiphertexts(t *testing.T) {
 		client := fhe.NewClientBFV(&ptField, params, sk)
 		evaluator := bgv.NewEvaluator(params, nil)
 
-		matrixColMajor, ciphertexts, err := core.RandomMatrixColMajor(rows, cols, func(u []uint64) *rlwe.Ciphertext {
+		matrixColMajor, ciphertexts, err := core.RandomMatrixColMajor(rows, cols, Modulus, func(u []uint64) *rlwe.Ciphertext {
 			plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 			if err := client.Encode(u, plaintext); err != nil {
 				panic(err)

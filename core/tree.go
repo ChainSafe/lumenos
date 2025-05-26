@@ -266,3 +266,22 @@ func VerifyMerklePath(leaf Leaf, path MerklePath, root []byte, index uint) (bool
 
 	return bytes.Equal(currentHash, root), nil
 }
+
+func (p *MerklePath) WriteTo(buf *bytes.Buffer) error {
+	for _, hash := range *p {
+		if _, err := buf.Write(hash); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *MerklePath) ReadFrom(buf *bytes.Buffer) error {
+	for i := range *p {
+		(*p)[i] = make([]byte, 32)
+		if _, err := buf.Read((*p)[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}

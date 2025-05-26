@@ -22,7 +22,8 @@ CFLAGS_VDEC = $(CFLAGS) $(OPENMP_FLAGS)
 # =======================================
 # Define vdec source directory
 VDEC_DIR = src
-VDEC_SRC = $(VDEC_DIR)/vdec.c
+VDEC_SCRIPT = vdec.c
+VDEC_SRC = $(VDEC_DIR)/$(VDEC_SCRIPT)
 # =======================================
 
 # honor user CFLAGS

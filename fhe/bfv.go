@@ -16,6 +16,7 @@ type ServerBFV struct {
 	*bgv.Evaluator
 	*bgv.Encoder
 	*rlwe.Encryptor
+	rs         *RingSwitchServer
 	mulCounter int
 }
 
@@ -23,7 +24,7 @@ func NewBackendBFV(plaintextField *core.PrimeField, params bgv.Parameters, pk *r
 	evaluator := bgv.NewEvaluator(params, evk) // TODO: use BFV scaleInvariant=true and use MulScaleInvariant instead of MulNew
 	encoder := bgv.NewEncoder(params)
 	encryptor := rlwe.NewEncryptor(params, pk)
-	return &ServerBFV{plaintextField, params, evaluator, encoder, encryptor, 0}
+	return &ServerBFV{plaintextField, params, evaluator, encoder, encryptor, nil, 0}
 }
 
 func (b *ServerBFV) Field() *core.PrimeField {
@@ -44,6 +45,18 @@ func (b *ServerBFV) MulCounter() int {
 	return b.mulCounter
 }
 
+func (b *ServerBFV) SetRingSwitchServer(rs *RingSwitchServer) {
+	b.rs = rs
+}
+
+func (b *ServerBFV) RingSwitch() *RingSwitchServer {
+	return b.rs
+}
+
+func (b *ServerBFV) CopyNew() *ServerBFV {
+	return &ServerBFV{b.ptField, b.params, b.Evaluator.ShallowCopy(), b.Encoder.ShallowCopy(), b.Encryptor.ShallowCopy(), b.rs, b.mulCounter}
+}
+
 type ClientBFV struct {
 	ptField   *core.PrimeField
 	paramsFHE bgv.Parameters
@@ -52,6 +65,7 @@ type ClientBFV struct {
 	*rlwe.Decryptor
 	sk *rlwe.SecretKey
 	*bgv.Evaluator
+	rs *RingSwitch
 
 	// paramsPoD *bgv.Parameters
 	// pod       *ServerBFV
@@ -63,30 +77,12 @@ func NewClientBFV(plaintextField *core.PrimeField, paramsFHE bgv.Parameters, sk 
 	encryptor := rlwe.NewEncryptor(paramsFHE, sk)
 	decryptor := rlwe.NewDecryptor(paramsFHE, sk)
 	evaluator := bgv.NewEvaluator(paramsFHE, nil)
-	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk, evaluator}
+	return &ClientBFV{plaintextField, paramsFHE, encoder, encryptor, decryptor, sk, evaluator, nil}
 }
 
 func (b *ClientBFV) SecretKey() *rlwe.SecretKey {
 	return b.sk
 }
-
-// func (b *ClientBFV) WithPoD(plaintextField *core.PrimeField, paramsPoD bgv.Parameters, sk *rlwe.SecretKey) *ClientBFV {
-// 	b.paramsPoD = &paramsPoD
-// 	evaluator := bgv.NewEvaluator(paramsPoD, nil)
-// 	encoder := bgv.NewEncoder(paramsPoD)
-// 	encryptor := rlwe.NewEncryptor(paramsPoD, sk)
-// 	b.pod = &ServerBFV{plaintextField, paramsPoD, evaluator, encoder, encryptor}
-// 	b.podSk = sk
-// 	return b
-// }
-
-// func (b *ClientBFV) PoDBackend() *ServerBFV {
-// 	return b.pod
-// }
-
-// func (b *ClientBFV) PoDSK() *rlwe.SecretKey {
-// 	return b.podSk
-// }
 
 func (b *ClientBFV) Field() *core.PrimeField {
 	return b.ptField
@@ -95,6 +91,18 @@ func (b *ClientBFV) Field() *core.PrimeField {
 func (b *ClientBFV) GetRingSwitchEvk(paramsPoD bgv.Parameters) (*rlwe.EvaluationKey, *rlwe.SecretKey) {
 	skPoD := rlwe.NewKeyGenerator(paramsPoD).GenSecretKeyNew()
 	return rlwe.NewKeyGenerator(b.paramsFHE).GenEvaluationKeyNew(b.sk, skPoD), skPoD
+}
+
+func (b *ClientBFV) CopyNew() *ClientBFV {
+	return &ClientBFV{b.ptField, b.paramsFHE, b.Encoder.ShallowCopy(), b.Encryptor.ShallowCopy(), b.Decryptor.ShallowCopy(), b.sk, b.Evaluator.ShallowCopy(), b.rs}
+}
+
+func (b *ClientBFV) SetRingSwitch(rs *RingSwitch) {
+	b.rs = rs
+}
+
+func (b *ClientBFV) RingSwitch() *RingSwitch {
+	return b.rs
 }
 
 // GenerateBGVParamsForNTT generates BGV parameter based on the NTT size
@@ -111,6 +119,7 @@ func (b *ClientBFV) GetRingSwitchEvk(paramsPoD bgv.Parameters) (*rlwe.Evaluation
 //   - LogP prime sizes: Start with 60 bits.
 //   - Xe, Xs: Left empty to use Lattigo defaults (Gaussian error, Ternary secret).
 func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bgv.ParametersLiteral, error) {
+	fmt.Printf("LogN: %v\n", logN)
 
 	// --- Input Validation (Simplified) ---
 	if nttSize < 2 {
@@ -135,8 +144,6 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 	plaintextModulusBits := bits.Len64(plaintextModulus)
 	var bufferLevels int
 
-	fmt.Println("plaintextModulusBits", plaintextModulusBits)
-
 	if plaintextModulusBits > 45 { // Large T (e.g., >~45-50 bits)
 		bufferLevels = 0
 	} else { // Small T (e.g., <= 30 bits)
@@ -150,7 +157,7 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 	// The formula k+1 works directly for k=1 (nttSize=2) as well.
 	numQPrimes := k
 
-	fmt.Println("numQPrimes", numQPrimes)
+	fmt.Println("ModQ chain length", numQPrimes)
 
 	// Generate LogQ slice: Use [60, 59, 59, ...] pattern
 	logQ := make([]int, numQPrimes)
@@ -167,7 +174,7 @@ func GenerateBGVParamsForNTT(nttSize int, logN int, plaintextModulus uint64) (bg
 	// Generate LogP slice: Use [60, 60, ...] pattern
 	logP := make([]int, numPPrimes)
 	for i := 0; i < numPPrimes; i++ {
-		logP[i] = 60
+		logP[i] = 55
 	}
 
 	paramsLit := bgv.ParametersLiteral{

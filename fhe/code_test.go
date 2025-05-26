@@ -43,7 +43,7 @@ func TestEncode(t *testing.T) {
 	backend := fhe.NewBackendBFV(&ptField, params, pk, nil)
 
 	start = time.Now()
-	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, func(u []uint64) *rlwe.Plaintext {
+	matrix, batchedCols, err := core.RandomMatrixRowMajor(rows, cols, Modulus, func(u []uint64) *rlwe.Plaintext {
 		plaintext := bgv.NewPlaintext(params, params.MaxLevel())
 		if err := encoder.Encode(u, plaintext); err != nil {
 			panic(err)

@@ -26,6 +26,14 @@ func NewPrimeField(modulus uint64, N int) (PrimeField, error) {
 	return field, nil
 }
 
+func (f *PrimeField) Modulus() uint64 {
+	return f.r.Modulus
+}
+
+func (f *PrimeField) BRedConstant() [2]uint64 {
+	return f.r.BRedConstant
+}
+
 func (f *PrimeField) N() int {
 	return f.r.N
 }
