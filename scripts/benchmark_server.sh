@@ -9,11 +9,13 @@ set -e
 RING_SWITCH_LOGN=${RING_SWITCH_LOGN:--1}
 IS_GBFV=${IS_GBFV:-false}
 VDEC=${VDEC:-true}
+PREFIX=${PREFIX:-""}
 
 echo "Environment configuration:"
 echo "RING_SWITCH_LOGN: $RING_SWITCH_LOGN"
 echo "IS_GBFV: $IS_GBFV"
 echo "VDEC: $VDEC"
+echo "PREFIX: $PREFIX"
 echo ""
 
 # Build with make first
@@ -50,7 +52,7 @@ for config in "${CONFIGURATIONS[@]}"; do
     echo "=========================================="
     
     # Create output file
-    OUTPUT_FILE="results/server/bench_${CASE_NAME}.txt"
+    OUTPUT_FILE="results/server/${PREFIX}bench_${CASE_NAME}.txt"
     
     echo "Output file: $OUTPUT_FILE"
     echo "Starting server with benchMode=true..."
