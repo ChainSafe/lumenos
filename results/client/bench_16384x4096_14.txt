@@ -1,0 +1,22 @@
+==========================================
+FHE Client Benchmark Results
+==========================================
+Case: 16384x4096_14
+ROWS: 16384
+COLS: 4096
+LOGN: 14
+Ring Switch LogN: -1
+IS_GBFV: false
+VDEC: true
+Server URL: http://18.224.200.45:8080
+Timestamp: Mon May 26 09:31:39 UTC 2025
+==========================================
+
+Starting client for matrix: 16384 x 4096, logN: 14
+LogN: 14
+ModQ chain length 12
+Marshaled keys length: 504 MB
+FHE keys sent to server
+Requesting proof evaluation...
+signal: killed
+ERROR: Client benchmark failed

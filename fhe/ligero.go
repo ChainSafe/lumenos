@@ -807,9 +807,46 @@ func (c *LigeroCommitter) LigeroProveReference(matrix [][]*core.Element, point *
 	encoded, err := func() ([][]*core.Element, error) {
 		span := core.StartSpan("Encode", commitSpan)
 		defer span.End()
+
+		// Parallel encoding of matrix rows
 		encodedMatrix := make([][]*core.Element, rows)
+		type encodingResult struct {
+			index int
+			row   []*core.Element
+			err   error
+		}
+
+		resultChan := make(chan encodingResult, rows)
+		numWorkers := determineOptimalWorkers(rows)
+		workChan := make(chan int, rows)
+
+		var wg sync.WaitGroup
+		for w := 0; w < numWorkers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for i := range workChan {
+					encoded := core.Encode(matrix[i], rhoInv, field)
+					resultChan <- encodingResult{index: i, row: encoded}
+				}
+			}()
+		}
+
 		for i := range matrix {
-			encodedMatrix[i] = core.Encode(matrix[i], rhoInv, field)
+			workChan <- i
+		}
+		close(workChan)
+
+		go func() {
+			wg.Wait()
+			close(resultChan)
+		}()
+
+		for res := range resultChan {
+			if res.err != nil {
+				return nil, res.err
+			}
+			encodedMatrix[res.index] = res.row
 		}
 
 		encodedMatrixColMajor := make([][]*core.Element, cols*rhoInv)

@@ -1,0 +1,44 @@
+==========================================
+FHE Client Benchmark Results
+==========================================
+Case: 2048x1024_12
+ROWS: 2048
+COLS: 1024
+LOGN: 12
+Ring Switch LogN: -1
+IS_GBFV: false
+VDEC: true
+Server URL: http://18.224.200.45:8080
+Timestamp: Mon May 26 09:22:35 UTC 2025
+==========================================
+
+Starting client for matrix: 2048 x 1024, logN: 12
+LogN: 12
+ModQ chain length 10
+Marshaled keys length: 69 MB
+FHE keys sent to server
+Requesting proof evaluation...
+Received encrypted proof for P(x=1)=59828798142202325 | size: 310 MB
+Decrypting proof...
+  Decrypt queried columns (96.671286ms)
+  Decrypt row inner products (532.395398ms)
+Decrypt proof (629.169791ms)
+
+Verifiable decrypt...
+  Batching decrypted columns (493.711397ms)
+  Batching ciphertexts (242.763924ms)
+  Witness generation (9.186475ms)
+  Proof generation (23.860279025s)
+Verifiable decrypt (24.627588949s)
+Verify proof (154.237899ms)
+
+Ligero local generation...
+  Ligero commit
+    Encode (2.498035241s)
+    Merkle tree (837.883474ms)
+  Ligero prove
+    Compute inner products R (239.615827ms)
+    Compute inner products B (189.925204ms)
+    Query columns (545.473µs)
+  Ligero prove (430.16156ms)
+Ligero local generation (3.76620289s)
