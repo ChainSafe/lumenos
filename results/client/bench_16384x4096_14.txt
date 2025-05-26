@@ -8,15 +8,34 @@ LOGN: 14
 Ring Switch LogN: -1
 IS_GBFV: false
 VDEC: true
-Server URL: http://18.224.200.45:8080
-Timestamp: Mon May 26 09:31:39 UTC 2025
+Server URL: http://localhost:8080
+Timestamp: Mon May 26 12:45:58 UTC 2025
 ==========================================
 
-Starting client for matrix: 16384 x 4096, logN: 14
-LogN: 14
-ModQ chain length 12
-Marshaled keys length: 504 MB
-FHE keys sent to server
-Requesting proof evaluation...
-signal: killed
+/tmp/go-build2152818892/b001/exe/main: error while loading shared libraries: libvdecapi.so: cannot open shared object file: No such file or directory
+exit status 127
+Command exited with non-zero status 1
+	Command being timed: "bash -c go run -ldflags='-w -s' cmd/client/main.go -rows 16384 -cols 4096 -logN 14 -server http://localhost:8080 -vdec"
+	User time (seconds): 0.44
+	System time (seconds): 0.13
+	Percent of CPU this job got: 123%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.46
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 148480
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 24
+	Minor (reclaiming a frame) page faults: 45514
+	Voluntary context switches: 955
+	Involuntary context switches: 195
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 40912
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1
 ERROR: Client benchmark failed

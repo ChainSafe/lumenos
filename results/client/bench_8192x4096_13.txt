@@ -9,7 +9,7 @@ Ring Switch LogN: -1
 IS_GBFV: false
 VDEC: true
 Server URL: http://18.224.200.45:8080
-Timestamp: Mon May 26 09:25:37 UTC 2025
+Timestamp: Mon May 26 12:59:16 UTC 2025
 ==========================================
 
 Starting client for matrix: 8192 x 4096, logN: 13
@@ -20,25 +20,48 @@ FHE keys sent to server
 Requesting proof evaluation...
 Received encrypted proof for P(x=1)=125815544481056462 | size: 2.2 GB
 Decrypting proof...
-  Decrypt queried columns (221.400143ms)
-  Decrypt row inner products (4.315971339s)
-Decrypt proof (4.537473522s)
+  Decrypt queried columns (220.102129ms)
+  Decrypt row inner products (4.324514542s)
+Decrypt proof (4.544712592s)
 
 Verifiable decrypt...
-  Batching decrypted columns (1.976595374s)
-  Batching ciphertexts (602.591441ms)
-  Witness generation (22.123297ms)
-  Proof generation (23.559631963s)
-Verifiable decrypt (26.205080108s)
-Verify proof (396.516996ms)
+  Batching decrypted columns (1.986886911s)
+  Batching ciphertexts (593.674073ms)
+  Witness generation (27.940643ms)
+  Proof generation (22.823962333s)
+Verifiable decrypt (25.47345799s)
+Verify proof (389.394853ms)
 
 Ligero local generation...
   Ligero commit
-    Encode (48.604610958s)
-    Merkle tree (18.194840838s)
+    Encode (50.530153727s)
+    Merkle tree (16.865937299s)
   Ligero prove
-    Compute inner products R (7.400071116s)
-    Compute inner products B (3.808975283s)
-    Query columns (683.456µs)
-  Ligero prove (11.209813069s)
-Ligero local generation (1m18.009413259s)
+    Compute inner products R (9.475676181s)
+    Compute inner products B (3.817956165s)
+    Query columns (702.127µs)
+  Ligero prove (13.294418775s)
+Ligero local generation (1m20.690657128s)
+	Command being timed: "bash -c go run -ldflags='-w -s' cmd/client/main.go -rows 8192 -cols 4096 -logN 13 -server http://18.224.200.45:8080 -vdec"
+	User time (seconds): 187.53
+	System time (seconds): 8.29
+	Percent of CPU this job got: 54%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 6:00.21
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 6650116
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 20
+	Minor (reclaiming a frame) page faults: 3855782
+	Voluntary context switches: 154150
+	Involuntary context switches: 14512
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 40952
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

@@ -33,7 +33,7 @@ CONFIGURATIONS=(
     "2048,1024,12"
     "4096,2048,12"
     "8192,4096,13"
-    "16384,4096,14"
+    # "16384,4096,14"
 )
 
 echo "Starting client benchmark collection..."
@@ -92,8 +92,8 @@ for config in "${CONFIGURATIONS[@]}"; do
     
     echo "Running client command: $CLIENT_CMD"
     
-    # Run client and capture output
-    if bash -c "$CLIENT_CMD" >> "$OUTPUT_FILE" 2>&1; then
+    # Run client with memory measurement and capture output
+    if /usr/bin/time -v bash -c "$CLIENT_CMD" >> "$OUTPUT_FILE" 2>&1; then
         echo "✅ Client benchmark completed successfully"
     else
         echo "❌ Client benchmark failed"
