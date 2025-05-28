@@ -85,6 +85,8 @@ Hardware: m7i.8xlarge, 32 vCPUs 128GB RAM
 
 Hardware: m7i.8xlarge, 2 vCPUs 8GB RAM
 
+> Note: for `16384x4096`, Ligero local had to tap into swap memory, which explains the sudden drop in performance. Assume that on devices where swap is unavailable, proof generation for this configuration would fail with OOM.
+
 ### Experimental
 
 - Same hardware as above.
