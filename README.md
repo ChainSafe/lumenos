@@ -83,7 +83,7 @@ Hardware: m7i.8xlarge, 32 vCPUs 128GB RAM
 | **Ligero local**                              | 3.89s     | 16.81s    | 1m 20.69s | 14m 21.94s |
 | **Peak RAM (GB)**                             | 1.05 GB   | 1.83 GB   | 6.34 GB   | 7.18 GB    |
 
-Hardware: m7i.8xlarge, 2 vCPUs 8GB RAM
+Hardware: m6i.large, 2 vCPUs 8GB RAM
 
 > Note: for `16384x4096`, Ligero local had to tap into swap memory, which explains the sudden drop in performance. Assume that on devices where swap is unavailable, proof generation for this configuration would fail with OOM.
 
