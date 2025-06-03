@@ -1,0 +1,68 @@
+==========================================
+FHE Client Benchmark Results
+==========================================
+Case: 8192x4096_15
+ROWS: 8192
+COLS: 4096
+LOGN: 15
+Ring Switch LogN: -1
+IS_GBFV: false
+VDEC: true
+Server URL: http://18.221.83.78:8080
+Hardware: m6i.large
+Timestamp: Tue Jun  3 10:44:45 UTC 2025
+==========================================
+
+Starting client for matrix: 8192 x 4096, logN: 15
+LogN: 15
+ModQ chain length 12
+Marshaled keys length: 891 MB
+FHE keys sent to server
+Requesting proof evaluation...
+Received encrypted proof for P(x=1)=125815544481056462 | size: 8.9 GB
+Decrypting proof...
+  Decrypt queried columns (21.280398466s)
+  Decrypt row inner products (4m5.222392444s)
+Decrypt proof (4m26.54021509s)
+
+Verifiable decrypt...
+  Batching decrypted columns (2.678122162s)
+  Batching ciphertexts (2.675477958s)
+  Witness generation (219.397322ms)
+  Proof generation (22.99965872s)
+Verifiable decrypt (36.408617409s)
+Verify proof (1.055485765s)
+
+Ligero local generation...
+  Ligero commit
+    Encode (50.580917873s)
+    Merkle tree (17.69828955s)
+  Ligero prove
+    Compute inner products R (3.678781905s)
+    Compute inner products B (3.652720209s)
+    Query columns (789.985µs)
+  Ligero prove (7.332399248s)
+Ligero local generation (1m15.611804412s)
+	Command being timed: "bash -c go run -ldflags='-w -s' cmd/client/main.go -rows 8192 -cols 4096 -logN 15 -server http://18.221.83.78:8080 -vdec"
+	User time (seconds): 266.72
+	System time (seconds): 118.38
+	Percent of CPU this job got: 11%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 56:24.33
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 7503652
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1835221
+	Minor (reclaiming a frame) page faults: 35847070
+	Voluntary context switches: 9631223
+	Involuntary context switches: 19605
+	Swaps: 0
+	File system inputs: 167068072
+	File system outputs: 40960
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
