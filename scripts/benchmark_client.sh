@@ -34,10 +34,10 @@ mkdir -p $RESULTS_DIR/client
 # Define configurations
 # Format: ROWS,COLS,LOGN
 CONFIGURATIONS=(
-    "2048,1024,14"
-    "4096,2048,15"
-    "8192,4096,15"
-    # "16384,4096,14"
+    # "2048,1024,14"
+    # "4096,2048,15"
+    # "8192,4096,15"
+    "16384,4096,15"
 )
 
 echo "Starting client benchmark collection..."

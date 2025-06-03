@@ -1,0 +1,69 @@
+==========================================
+FHE Client Benchmark Results
+==========================================
+Case: 16384x4096_15
+ROWS: 16384
+COLS: 4096
+LOGN: 15
+Ring Switch LogN: 10
+IS_GBFV: true
+VDEC: true
+Server URL: http://18.221.83.78:8080
+Hardware: m6i.large
+Timestamp: Tue Jun  3 15:06:19 UTC 2025
+==========================================
+
+Starting client for matrix: 16384 x 4096, logN: 15
+LogN: 15
+ModQ chain length 12
+Request to use ring switch to LogN: 10
+Marshaled keys length: 1.0 GB
+FHE keys sent to server
+Requesting proof evaluation...
+Received encrypted proof for P(x=1)=5538402014578059 | size: 461 MB
+Decrypting proof...
+  Decrypt queried columns (890.9124ms)
+  Decrypt row inner products (289.21339ms)
+Decrypt proof (1.180298157s)
+
+Verifiable decrypt...
+  Batching decrypted columns (3.994860759s)
+  Batching ciphertexts (2.694681268s)
+  Witness generation (83.069442ms)
+  Proof generation (3.077696889s)
+Verifiable decrypt (10.008803552s)
+Ring switch is unstable, proof verification will fail
+
+Ligero local generation...
+  Ligero commit
+    Encode (1m59.348919188s)
+    Merkle tree (3m40.729312232s)
+  Ligero prove
+    Compute inner products R (3m0.123997355s)
+    Compute inner products B (1m2.711099891s)
+    Query columns (9.252678ms)
+  Ligero prove (4m2.844512279s)
+Ligero local generation (9m42.952522191s)
+	Command being timed: "bash -c go run -ldflags='-w -s' cmd/client/main.go -rows 16384 -cols 4096 -logN 15 -server http://18.221.83.78:8080 -vdec -isGBFV -ringSwitchLogN 10"
+	User time (seconds): 369.24
+	System time (seconds): 22.18
+	Percent of CPU this job got: 23%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 27:50.71
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 7433140
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 742720
+	Minor (reclaiming a frame) page faults: 7343508
+	Voluntary context switches: 907793
+	Involuntary context switches: 27201
+	Swaps: 0
+	File system inputs: 16017072
+	File system outputs: 40984
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
