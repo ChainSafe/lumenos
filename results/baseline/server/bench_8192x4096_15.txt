@@ -1,0 +1,61 @@
+==========================================
+FHE Server Benchmark Results
+==========================================
+Case: 8192x4096_15
+ROWS: 8192
+COLS: 4096
+LOGN: 15
+RING_SWITCH_LOGN: -1
+IS_GBFV: false
+VDEC: true
+Hardware: m7i.8xlarge
+Timestamp: Tue Jun  3 10:36:54 UTC 2025
+==========================================
+
+LogN: 15
+ModQ chain length 12
+FHE Server started on :8080 (rows=8192, cols=4096, logN=15)...
+Encrypt matrix (2m19.836898619s)
+Number of queried columns: 309
+Commit FHE evaluation...
+  Encode (4m45.857524205s)
+  Merkle tree built (40.020672877s)
+Commit FHE evaluation (5m25.878304771s)
+
+Prove FHE evaluation...
+  InnerProduct(Matrix, b) (8m17.111259478s)
+  InnerProduct(Matrix, r) (8m17.278080015s)
+  Query columns (15.761943533s)
+Prove FHE evaluation (8m33.056805913s)
+
+Marshaled MatR: 4.3 GB
+Marshaled MatZ: 4.3 GB
+Marshaled QueriedCols: 324 MB
+Marshal proof (4.507204649s)
+
+Marshaled encrypted proof length: 8.9 GB
+Evaluate polynomial (374.864647ms)
+
+	Command being timed: "bash -c go run -ldflags='-w -s' cmd/server/main.go -rows 8192 -cols 4096 -logN 15 -benchMode=true -port=8080"
+	User time (seconds): 17326.67
+	System time (seconds): 75.71
+	Percent of CPU this job got: 660%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 43:52.83
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 163689700
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 25
+	Minor (reclaiming a frame) page faults: 44349874
+	Voluntary context switches: 230394
+	Involuntary context switches: 98452
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 41616
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
