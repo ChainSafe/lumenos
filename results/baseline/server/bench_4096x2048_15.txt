@@ -6,38 +6,57 @@ ROWS: 4096
 COLS: 2048
 LOGN: 15
 RING_SWITCH_LOGN: -1
-IS_GBFV: true
+IS_GBFV: false
 VDEC: true
-Hardware: m7i.8xlarge
-Timestamp: Tue Jun  3 12:07:12 UTC 2025
+Hardware: r7i.8xlarge
+Timestamp: Wed Jun  4 12:33:11 UTC 2025
 ==========================================
 
 LogN: 15
 ModQ chain length 11
 FHE Server started on :8080 (rows=4096, cols=2048, logN=15)...
-signal: interrupt
-Command exited with non-zero status 1
+Encrypt matrix (1m2.733254594s)
+Number of queried columns: 309
+Commit FHE evaluation...
+  Encode (2m1.854839487s)
+  Merkle tree built (17.573125436s)
+Commit FHE evaluation (2m19.428075872s)
+
+Prove FHE evaluation...
+  InnerProduct(Matrix, r) (3m16.28101765s)
+  InnerProduct(Matrix, b) (3m16.337237579s)
+  Query columns (12.641672015s)
+Prove FHE evaluation (3m28.990950033s)
+
+Marshaled MatR: 2.1 GB
+Marshaled MatZ: 2.1 GB
+Marshaled QueriedCols: 324 MB
+Marshal proof (2.215284344s)
+
+Marshaled encrypted proof length: 4.6 GB
+Evaluate polynomial (78.937472ms)
+
+Failed to write payload: write tcp 156.81.30.188:8080->18.217.85.218:33272: write: connection reset by peer
 	Command being timed: "bash -c go run -ldflags='-w -s' cmd/server/main.go -rows 4096 -cols 2048 -logN 15 -benchMode=true -port=8080"
-	User time (seconds): 0.59
-	System time (seconds): 0.22
-	Percent of CPU this job got: 6%
-	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:12.75
+	User time (seconds): 6842.25
+	System time (seconds): 29.34
+	Percent of CPU this job got: 1423%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 8:02.84
 	Average shared text size (kbytes): 0
 	Average unshared data size (kbytes): 0
 	Average stack size (kbytes): 0
 	Average total size (kbytes): 0
-	Maximum resident set size (kbytes): 145664
+	Maximum resident set size (kbytes): 84241532
 	Average resident set size (kbytes): 0
-	Major (requiring I/O) page faults: 28
-	Minor (reclaiming a frame) page faults: 68027
-	Voluntary context switches: 4233
-	Involuntary context switches: 37
+	Major (requiring I/O) page faults: 27
+	Minor (reclaiming a frame) page faults: 21168312
+	Voluntary context switches: 123380
+	Involuntary context switches: 40747
 	Swaps: 0
 	File system inputs: 0
-	File system outputs: 41560
+	File system outputs: 45096
 	Socket messages sent: 0
 	Socket messages received: 0
 	Signals delivered: 0
 	Page size (bytes): 4096
-	Exit status: 1
-ERROR: Server benchmark failed
+	Exit status: 0
