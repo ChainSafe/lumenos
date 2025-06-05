@@ -1,6 +1,9 @@
 # LUMENOS: Private Proof Delegation with FHE-SNARKs
+_**L**ayered **U**ntrusted **M**ulti-witness **EN**crypted **O**utsourced **S**NARKs._
 
 This project aims to develop and validate Private Proof Delegation via server-side FHE-evaluated SNARKs over encrypted single-client or private shared witness and untrusted public verifiability.
+
+
 
 ## Documentation
 - Analysis ["SNARK-FHE vs FHE-SNARK for Private Proof Delegation"](https://hackmd.io/@timofey/r1FuxwVsJg)
@@ -45,7 +48,7 @@ make client REMOTE_SERVER_URL=http://<IP>:8080
 
 - BGV params based on [`GenerateBGVParamsForNTT`](https://github.com/ChainSafe/lumenos/blob/ccaafb29b205f5e8d2c44f11761684303a3d7f2b/fhe/bfv.go#L121-L188) heuristic
   - Plaintext prime: `144115188075593729` ($2^{57} – 2^{18} + 1$, $57$ bits)
-  - LogN `max(12, log2(ROWS))` (see table)
+  - LogN `min(12, log2(ROWS))` (see table)
   - LogQ `len([58, 56, 56, ... ])=log2(nttSize)`
   - LogP `[55,55]`
 - Number of queries `306` (according to ref. [implementation](https://github.com/reilabs/ProveKit/blob/ea95eb6494da2514c573c73bd0449cd2c3d39526/delegated-spartan/src/pcs/ligero.rs#L33-L34))
