@@ -32,10 +32,10 @@ mkdir -p $RESULTS_DIR/server
 # Define configurations
 # Format: ROWS,COLS,LOGN
 CONFIGURATIONS=(
-    "2048,1024,12"
-    "4096,2048,12"
-    "8192,4096,13"
-    "16384,4096,14"
+    # "2048,1024,14"
+    # "4096,2048,15"
+    # "8192,4096,15"
+    "16384,4096,15"
 )
 
 echo "Starting server benchmark collection..."

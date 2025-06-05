@@ -47,6 +47,7 @@ make client REMOTE_SERVER_URL=http://<IP>:8080
 ## Benchmarks
 
 - BGV params based on [`GenerateBGVParamsForNTT`](https://github.com/ChainSafe/lumenos/blob/ccaafb29b205f5e8d2c44f11761684303a3d7f2b/fhe/bfv.go#L121-L188) heuristic
+  - Target 128bit security
   - Plaintext prime: `144115188075593729` ($2^{57} – 2^{18} + 1$, $57$ bits)
   - LogN `min(12, log2(ROWS))` (see table)
   - LogQ `len([58, 56, 56, ... ])=log2(nttSize)`
@@ -55,40 +56,41 @@ make client REMOTE_SERVER_URL=http://<IP>:8080
 
 ### Server
 
-| **Dimension**                         | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
-| :------------------------------------ | :-------- | :-------- | :-------- | :--------- |
-| **LogN**                              | 12        | 12        | 13        | 14         |
-| **Encode eval**                       | 5.17s     | 12.63s    | 1m 6.78s  | 2m 22.73s  |
-| **Commit eval**                       | 1.03s     | 2.04s     | 9.17s     | 18.79s     |
-| **Inner product eval**                | 8.51s     | 22.74s    | 1m 49.60s | 4m 7.48s   |
-| **Query cols eval**                   | 1.10s     | 1.42s     | 3.55s     | 7.63s      |
-| **Prove eval total**                  | 9.61s     | 24.17s    | 1m 53.16s | 4m 15.12s  |
-| **$ct[\langle r_i,M_{i,j}\rangle]$**  | 135 MB    | 269 MB    | 1.1 GB    | 2.1 GB     |
-| **$ct[\hat{M}_{i,j}] i \in \lambda$** | 41 MB     | 41 MB     | 81 MB     | 162 MB     |
-| **Proof size**                        | 310 MB    | 579 MB    | 2.2 GB    | 4.5 GB     |
-| **Peak RAM (GB)**                     | 5.74 GB   | 10.79 GB  | 41.23 GB  | 79.43 GB   |
+### Server
 
-Hardware: m7i.8xlarge, 32 vCPUs 128GB RAM
+| **Dimension**                         | 2048x1024 | 4096x2048 | 8192x4096 |
+| :------------------------------------ | :-------- | :-------- | :-------- |
+| **LogN**                              | 14        | 15        | 15        |
+| **Encode eval**                       | 24.67s    | 2m 1.85s  | 4m 45.86s |
+| **Commit eval**                       | 3.85s     | 17.57s    | 40.02s    |
+| **Inner product eval**                | 34.47s    | 3m 16.28s | 8m 17.11s |
+| **Query cols eval**                   | 4.69s     | 12.64s    | 15.76s    |
+| **Prove eval total**                  | 39.36s    | 3m 28.99s | 8m 33.06s |
+| **$ct[\langle r_i,M_{i,j}\rangle]$**  | 537 MB    | 2.1 GB    | 4.3 GB    |
+| **$ct[\hat{M}_{i,j}] i \in \lambda$** | 162 MB    | 324 MB    | 324 MB    |
+| **Proof size**                        | 1.2 GB    | 4.6 GB    | 8.9 GB    |
+| **Peak RAM (GB)**                     | 23.18 GB  | 84.24 GB  | 156.11 GB |
+
+Hardware: r7i.8xlarge, 32 vCPUs 256GB RAM
+
 
 ### Client
 
-| **Dimension**                                 | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
-| :-------------------------------------------- | :-------- | :-------- | :-------- | :--------- |
-| **LogN**                                      | 12        | 12        | 13        | 14         |
-| **Keys**                                      | 69 MB     | 103 MB    | 237 MB    | 504 MB     |
-| **Encrypted proof size**                      | 310 MB    | 579 MB    | 2.2 GB    | 4.5 GB     |
-| **Decrypt $ct[\hat{M}_{i,j}] i \in \lambda$** | 95.85ms   | 107.73ms  | 220.10ms  | 513.26ms   |
-| **Decrypt $ct[\langle r_i,M_{i,j}\rangle]$**  | 531.57ms  | 1.05s     | 4.32s     | 47.53s     |
-| **Decrypt total**                             | 627.49ms  | 1.16s     | 4.54s     | 48.05s     |
-| **Batch ciphertexts**                         | 239.94ms  | 261.73ms  | 593.67ms  | 1.32s      |
-| **PoD prover**                                | 22.96s    | 22.82s    | 22.82s    | 22.70s     |
-| **Public verifier**                           | 151.94ms  | 197.06ms  | 389.39ms  | 804.64ms   |
-| **Ligero local**                              | 3.89s     | 16.81s    | 1m 20.69s | 14m 21.94s |
-| **Peak RAM (GB)**                             | 1.05 GB   | 1.83 GB   | 6.34 GB   | 7.18 GB    |
+| **Dimension**                                 | 2048x1024 | 4096x2048 | 8192x4096 |
+| :-------------------------------------------- | :-------- | :-------- | :-------- |
+| **LogN**                                      | 14        | 15        | 15        |
+| **Keys**                                      | 277 MB    | 772 MB    | 891 MB    |
+| **Encrypted proof size**                      | 1.2 GB    | 4.6 GB    | 8.9 GB    |
+| **Decrypt $ct[\hat{M}_{i,j}] i \in \lambda$** | 369.15ms  | 863.68ms  | 21.28s    |
+| **Decrypt $ct[\langle r_i,M_{i,j}\rangle]$**  | 2.29s     | 56.01s    | 4m 5.22s  |
+| **Decrypt total**                             | 2.66s     | 56.89s    | 4m 26.54s |
+| **Batch ciphertexts**                         | 1.06s     | 2.52s     | 2.68s     |
+| **PoD prover**                                | 22.97s    | 22.97s    | 23.00s    |
+| **Public verifier**                           | 468.07ms  | 994.93ms  | 1.06s     |
+| **Ligero local**                              | 4.03s     | 16.37s    | 1m 15.61s |
+| **Peak RAM (GB)**                             | 3.87 GB   | 7.20 GB   | 7.16 GB   |
 
 Hardware: m6i.large, 2 vCPUs 8GB RAM
-
-> Note: for `16384x4096`, Ligero local had to tap into swap memory, which explains the sudden drop in performance. Assume that on devices where swap is unavailable, proof generation for this configuration would fail with OOM.
 
 ### Experimental
 
@@ -100,34 +102,38 @@ Hardware: m6i.large, 2 vCPUs 8GB RAM
 
 #### Server
 
-| **Dimension**                         | 2048x1024      | 4096x2048       | 8192x4096        | 16384x4096       |
-| :------------------------------------ | :------------- | :-------------- | :--------------- | :--------------- |
-| **LogN**                              | 12             | 12              | 13               | 14               |
-| **Encode eval**                       | 5.16s          | 12.72s          | 1m 6.39s         | 2m 23.12s        |
-| **Commit eval**                       | 1.03s          | 2.04s           | 9.18s            | 18.80s           |
-| **Inner product eval**                | 8.51s          | 22.65s          | 1m 50.17s        | 4m 8.44s         |
-| **Query cols eval**                   | 1.10s          | 1.41s           | 3.55s            | 7.63s            |
-| **Prove eval total**                  | 9.67s          | 24.32s          | 1m 53.73s        | 4m 16.12s        |
-| **$ct[\langle r_i,M_{i,j}\rangle]$**  | 17 MB / -7.94x | 34 MB / -7.91x  | 68 MB / -16.57x  | 68 MB / -31.62x  |
-| **$ct[\hat{M}_{i,j}] i \in \lambda$** | 41 MB          | 41 MB           | 81 MB            | 162 MB           |
-| **Proof size**                        | 75 MB / -4.13x | 109 MB / -5.31x | 218 MB / -10.33x | 299 MB / -15.41x |
-| **Peak RAM (GB)**                     | 5.40 GB        | 10.78 GB        | 41.90 GB         | 79.25 GB         |
+### Server
+
+| **Dimension**                         | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
+| :------------------------------------ | :-------- | :-------- | :-------- | :--------- |
+| **LogN**                              | 14        | 15        | 15        | 15         |
+| **Encode eval**                       | 24.84s    | 2m 1.65s  | 4m 46.92s | 4m 51.69s  |
+| **Commit eval**                       | 4.13s     | 18.79s    | 39.44s    | 39.37s     |
+| **Inner product eval**                | 37.79s    | 3m 33.09s | 8m 18.92s | 8m 49.02s  |
+| **Query cols eval**                   | 4.81s     | 13.04s    | 15.85s    | 15.96s     |
+| **Prove eval total**                  | 42.79s    | 3m 46.18s | 8m 34.78s | 9m 5.05s   |
+| **$ct[\langle r_i,M_{i,j}\rangle]$**  | 17 MB     | 34 MB     | 68 MB     | 68 MB      |
+| **$ct[\hat{M}_{i,j}] i \in \lambda$** | 162 MB    | 324 MB    | 324 MB    | 324 MB     |
+| **Proof size**                        | 196 MB    | 393 MB    | 461 MB    | 461 MB     |
+| **Peak RAM (GB)**                     | 21.42 GB  | 74.50 GB  | 147.19 GB | 148.57 GB  |
 
 #### Client
 
-| **Dimension**                                 | 2048x1024         | 4096x2048         | 8192x4096          | 16384x4096          |
-| :-------------------------------------------- | :---------------- | :---------------- | :----------------- | :------------------ |
-| **LogN**                                      | 12                | 12                | 13                 | 14                  |
-| **Keys**                                      | 74 MB / +1.07x    | 110 MB / +1.07x   | 252 MB / +1.06x    | 533 MB / +1.06x     |
-| **Encrypted proof size**                      | 75 MB             | 109 MB            | 218 MB             | 299 MB              |
-| **Decrypt $ct[\hat{M}_{i,j}] i \in \lambda$** | 98.15ms           | 107.52ms          | 223.39ms           | 483.88ms            |
-| **Decrypt $ct[\langle r_i,M_{i,j}\rangle]$**  | 72.35ms / -7.35x  | 146.75ms / -7.15x | 284.23ms / -15.19x | 287.14ms / -165.52x |
-| **Decrypt total**                             | 170.58ms ~ -3.68x | 254.38ms ~ -4.56x | 507.71ms ~ -8.94x  | 771.12ms ~ -62.31x  |
-| **Batch ciphertexts**                         | 243.19ms          | 269.33ms          | 595.06ms           | 1.26s               |
-| **PoD prover**                                | 3.21s / -7.15x    | 3.05s / -7.48x    | 3.20s / -7.13x     | 3.20s / -7.09x      |
-| **Public verifier**                           | N/A               | N/A               | N/A                | N/A                 |
-| **Ligero local**                              | 3.99s             | 16.66s            | 1m 20.11s          | 10m 15.22s          |
-| **Peak RAM (GB)**                             | 0.56 GB / -1.88x  | 1.40 GB / -1.31x  | 5.39 GB / -1.18x   | 7.05 GB (≈)         |
+### Client
+
+| **Dimension**                                 | 2048x1024 | 4096x2048 | 8192x4096 | 16384x4096 |
+| :-------------------------------------------- | :-------- | :-------- | :-------- | :--------- |
+| **LogN**                                      | 14        | 15        | 15        | 15         |
+| **Keys**                                      | 298 MB    | 827 MB    | 949 MB    | 1.0 GB     |
+| **Encrypted proof size**                      | 196 MB    | 393 MB    | 461 MB    | 461 MB     |
+| **Decrypt $ct[\hat{M}_{i,j}] i \in \lambda$** | 391.54ms  | 808.20ms  | 827.74ms  | 890.91ms   |
+| **Decrypt $ct[\langle r_i,M_{i,j}\rangle]$**  | 73.46ms   | 146.35ms  | 288.97ms  | 289.21ms   |
+| **Decrypt total**                             | 465.13ms  | 954.68ms  | 1.12s     | 1.18s      |
+| **Batch ciphertexts**                         | 1.11s     | 2.53s     | 2.71s     | 2.69s      |
+| **PoD prover**                                | 3.27s     | 3.06s     | 3.06s     | 3.08s      |
+| **Public verifier**                           | N/A       | N/A       | N/A       | N/A        |
+| **Ligero local**                              | 4.12s     | 17.07s    | 1m 28.03s | 9m 42.95s  |
+| **Peak RAM (GB)**                             | 1.88 GB   | 4.79 GB   | 5.76 GB   | 7.09 GB    |
 
 ### Run yourself
 

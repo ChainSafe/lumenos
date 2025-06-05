@@ -30,8 +30,8 @@ update-submodules:
 # Set default server URL
 REMOTE_SERVER_URL ?= "http://localhost:8080"
 ROWS ?= 4096
-COLS ?= 1024
-LOGN ?= 12
+COLS ?= 2048
+LOGN ?= 14
 RING_SWITCH_LOGN ?= -1
 IS_GBFV ?= false
 
@@ -43,7 +43,7 @@ server:
 # Build and run client
 client:
 	@echo "--- Building and running FHE client ---"
-	go run cmd/client/main.go -rows $(ROWS) -cols $(COLS) -logN $(LOGN) -server $(REMOTE_SERVER_URL) -vdec -ringSwitchLogN $(RING_SWITCH_LOGN)
+	go run cmd/client/main.go -rows $(ROWS) -cols $(COLS) -logN $(LOGN) -server $(REMOTE_SERVER_URL) -vdec -ringSwitchLogN $(RING_SWITCH_LOGN) -isGBFV $(IS_GBFV)
 
 # Build all C dependencies
 # This relies on the Makefile in $(C_SUBDIR) (vdec/c/Makefile)
