@@ -1,14 +1,11 @@
-# LUMENOS: Private Proof Delegation with FHE-SNARKs
-_**L**ayered **U**ntrusted **M**ulti-witness **EN**crypted **O**utsourced **S**NARKs._
+# Private Proof Delegation with FHE-SNARKs
 
 This project aims to develop and validate Private Proof Delegation via server-side FHE-evaluated SNARKs over encrypted single-client or private shared witness and untrusted public verifiability.
-
-
 
 ## Documentation
 - Analysis ["SNARK-FHE vs FHE-SNARK for Private Proof Delegation"](https://hackmd.io/@timofey/r1FuxwVsJg)
 - Proposal ["PPD via FHE-SNARK"](https://hackmd.io/@timofey/rJbH6Ex3yg)
-- Prototype overview ["Lumenos project: update #1"](https://hackmd.io/@timofey/r1zaBIlQge)
+- Prototype overview ["Project update #1"](https://hackmd.io/@timofey/r1zaBIlQge)
 
 ## Requirements
 
@@ -105,7 +102,6 @@ Hardware: m6i.large, 2 vCPUs 8GB RAM
   - Note: correct deployment requires SlotsToCoeff ("unbatching") before ring switch which is not yet implemented for BFV. Verification is skipped because of this.
 - PoD prover runs optimized GBFV version [vdec_gbfv.c](https://github.com/ChainSafe/lumenos/blob/main/vdec/c/src/vdec_gbfv.c)
   - Note: Lattigo currently does not support GBFV. So final PoD is partially invalid ([h_our coeff](https://github.com/ChainSafe/lumenos/blob/main/vdec/c/src/vdec_gbfv.c#L915) check fails).
-- 
 
 #### Server
 
